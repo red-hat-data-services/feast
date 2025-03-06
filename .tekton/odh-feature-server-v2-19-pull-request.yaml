@@ -30,7 +30,7 @@ spec:
   - name: dockerfile
     value: Dockerfiles/Dockerfile.feature-server.konflux
   - name: path-context
-    value: .
+    value: "sdk/python/feast/infra/feature_servers/multicloud"
   - name: prefetch-input
     value: [{"type": "pip", "path": ".", "requirements_files": ["sdk/python/feast/infra/feature_servers/multicloud/requirements.txt"], "allow_binary": "true"}]
   pipelineSpec:
