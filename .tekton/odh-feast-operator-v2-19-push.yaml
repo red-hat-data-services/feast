@@ -7,8 +7,9 @@ metadata:
     build.appstudio.redhat.com/target_branch: '{{target_branch}}'
     pipelinesascode.tekton.dev/cancel-in-progress: "false"
     pipelinesascode.tekton.dev/max-keep-runs: "3"
-    pipelinesascode.tekton.dev/on-cel-expression: event == "push" && target_branch
-      == "rhoai-2.19"
+    pipelinesascode.tekton.dev/on-cel-expression: |
+      event == "push" && target_branch == "rhoai-2.19" 
+      && ("infra/feast-operator/**".pathChanged() || ".tekton/odh-feast-operator-v2-19-push.yaml".pathChanged() || Dockerfiles/Dockerfile.feast-operator.konflux )
   creationTimestamp: null
   labels:
     appstudio.openshift.io/application: rhoai-v2-19
@@ -23,11 +24,13 @@ spec:
   - name: revision
     value: '{{revision}}'
   - name: output-image
-    value: quay.io/rhoai/odh-feast-operator-rhel8:{{revision}}
+    value: quay.io/rhoai/odh-feast-operator-rhel8:{{target_branch}}
   - name: dockerfile
     value: Dockerfiles/Dockerfile.feast-operator.konflux
   - name: path-context
-    value: infra/feast-operator
+    value: "infra/feast-operator"
+  - name: prefetch-input
+    value: '{"type": "gomod", "path": "infra/feast-operator"}'
   pipelineSpec:
     description: |
       This pipeline is ideal for building container images from a Containerfile while maintaining trust after pipeline customization.
@@ -48,6 +51,28 @@ spec:
         - name: kind
           value: task
         resolver: bundles
+    - name: send-slack-notification
+      params:
+      - name: message
+        value: "$(tasks.rhoai-init.results.slack-message-failure-text)"
+      - name: secret-name
+        value: rhoai-konflux-secret
+      - name: key-name
+        value: slack-webhook
+      taskRef:
+        params:
+        - name: name
+          value: slack-webhook-notification
+        - name: bundle
+          value: quay.io/konflux-ci/tekton-catalog/task-slack-webhook-notification:0.1@sha256:dc17b70633363d78414b8c06dc1660d25742935f106a6116995638e1210c2730
+        - name: kind
+          value: task
+        resolver: bundles
+      when:
+      - input: $(tasks.status)
+        operator: in
+        values:
+        - "Failed"
     params:
     - description: Source Repository URL
       name: git-url
@@ -77,7 +102,7 @@ spec:
       description: Skip checks against built image
       name: skip-checks
       type: string
-    - default: "false"
+    - default: "true"
       description: Execute the build with network isolation
       name: hermetic
       type: string
@@ -89,7 +114,7 @@ spec:
       description: Image tag expiration time, time values could be something like
         1h, 2d, 3w for hours, days, and weeks, respectively.
       name: image-expires-after
-    - default: "false"
+    - default: "true"
       description: Build a source image.
       name: build-source-image
       type: string
@@ -119,6 +144,45 @@ spec:
       name: CHAINS-GIT_COMMIT
       value: $(tasks.clone-repository.results.commit)
     tasks:
+    - name: rhoai-init
+      params:
+      - name: pipelinerun-name
+        value: "$(context.pipelineRun.name)"
+      taskSpec:
+        results:
+        - description: Notification text to be posted to slack
+          name: slack-message-failure-text
+        steps:
+        - image: quay.io/rhoai-konflux/alpine:latest
+          name: rhoai-init
+          env:
+          - name: slack_message
+            valueFrom:
+              secretKeyRef:
+                name: rhoai-konflux-secret
+                key: slack-component-failure-notification
+          script: |
+            pipelinerun_name=$(params.pipelinerun-name)
+            target_branch={{target_branch}}
+            echo "pipelinerun-name = $pipelinerun_name"
+
+            application_name=${target_branch/rhoai-/}
+            application_name=rhoai-v${application_name/./-}
+            echo "application-name = $application_name"
+
+            component_name=${pipelinerun_name/-on-*/}
+            echo "component-name = $component_name"
+
+            KONFLUX_SERVER="https://konflux.apps.stone-prod-p02.hjvn.p1.openshiftapps.com"
+            build_url="${KONFLUX_SERVER}/application-pipeline/workspaces/rhoai/applications/${application_name}/pipelineruns/${pipelinerun_name}/logs"
+
+            build_time="$(date +%Y-%m-%dT%H:%M:%S)"
+
+            slack_message=${slack_message/__BUILD__URL__/$build_url}
+            slack_message=${slack_message/__PIPELINERUN__NAME__/$pipelinerun_name}
+            slack_message=${slack_message/__BUILD__TIME__/$build_time}
+
+            echo -en "${slack_message}" > "$(results.slack-message-failure-text.path)"
     - name: init
       params:
       - name: image-url
@@ -136,6 +200,8 @@ spec:
         - name: kind
           value: task
         resolver: bundles
+      runAfter:
+      - rhoai-init
     - name: clone-repository
       params:
       - name: url
@@ -212,6 +278,14 @@ spec:
         - $(params.build-args[*])
       - name: BUILD_ARGS_FILE
         value: $(params.build-args-file)
+      - name: LABELS
+        value:
+        - version=v2.19.0
+        - url=$(params.git-url)
+        - git.url=$(params.git-url)
+        - git.commit=$(params.revision)
+        - release=$(tasks.clone-repository.results.commit-timestamp)
+        - io.openshift.tags=odh-feast-operator
       - name: SOURCE_ARTIFACT
         value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
       - name: CACHI2_ARTIFACT
@@ -519,6 +593,9 @@ spec:
       params:
       - name: IMAGE
         value: $(tasks.build-image-index.results.IMAGE_URL)
+      - name: ADDITIONAL_TAGS
+        value:
+        - '{{target_branch}}-{{revision}}'
       runAfter:
       - build-image-index
       taskRef:
