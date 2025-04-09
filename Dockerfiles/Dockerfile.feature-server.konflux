@@ -1,6 +1,6 @@
 FROM registry.access.redhat.com/ubi8/python-311:1@sha256:6f6592717b9d88dc1ace1c4c144cfcbf59afa288edeb3cdd7a79d6d2f7467a11
 
-COPY sdk/python/requirements/py3.11-requirements.txt requirements.txt
+COPY requirements.txt requirements.txt
 RUN pip install -r requirements.txt
 
 # modify permissions to support running with a random uid
