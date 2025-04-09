@@ -29,9 +29,20 @@ spec:
   - name: dockerfile
     value: Dockerfiles/Dockerfile.feature-server.konflux
   - name: path-context
-    value: "."
+    value: "sdk/python/feast/infra/feature_servers/multicloud"
   - name: prefetch-input
-    value: [{"type": "pip", "path": ".", "requirements_files": ["sdk/python/feast/infra/feature_servers/multicloud/requirements.txt"], "requirements_build_files": ["sdk/python/requirements/py3.11-ci-requirements.txt"], "allow_binary": "true"}]
+    value: |
+      [{
+        "type": "pip", "path": ".", 
+        "requirements_files": [
+          "sdk/python/feast/infra/feature_servers/multicloud/requirements.txt"
+        ], 
+        "requirements_build_files": [
+          "sdk/python/requirements/py3.11-minimal-requirements.txt",
+          "sdk/python/requirements/py3.11-sdist-requirements.txt"
+        ], 
+        "allow_binary": "true"
+      }]
   pipelineSpec:
     description: |
       This pipeline is ideal for building container images from a Containerfile while maintaining trust after pipeline customization.
