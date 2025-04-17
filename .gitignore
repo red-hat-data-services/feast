@@ -238,3 +238,6 @@ infra/website/.astro/
 
 # offline builds
 offline_build/
+
+# .history/ directory is used by vscode History plugin
+.history/
