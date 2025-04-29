@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/vscode/devcontainers/python:3.9-buster
+FROM mcr.microsoft.com/vscode/devcontainers/python:3.11-buster
 
 USER vscode
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
