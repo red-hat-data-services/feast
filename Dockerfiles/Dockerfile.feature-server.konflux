@@ -1,4 +1,4 @@
-FROM registry.access.redhat.com/ubi8/python-311:1@sha256:6f6592717b9d88dc1ace1c4c144cfcbf59afa288edeb3cdd7a79d6d2f7467a11
+FROM registry.access.redhat.com/ubi8/python-311:1-90@sha256:7b6bc6bca3c9865401ce93592adeac7e89d800b4f14a1a81e5b6787850d67742
 
 COPY sdk/python/requirements/py3.11-requirements.txt requirements.txt
 RUN pip install -r requirements.txt
