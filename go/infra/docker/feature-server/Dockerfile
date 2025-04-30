@@ -1,4 +1,4 @@
-FROM golang:1.22.5
+FROM golang:1.24.2
 
 # Update the package list and install the ca-certificates package
 RUN apt-get update && apt-get install -y ca-certificates
