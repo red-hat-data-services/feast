@@ -1,5 +1,5 @@
 module "redis" {
-  source                  = "git::https://github.com/cloudposse/terraform-aws-elasticache-redis.git?ref=tags/0.25.0"
+  source                  = "git::https://github.com/cloudposse/terraform-aws-elasticache-redis.git?ref=0.53.0"
   subnets                 = module.vpc.private_subnets
   name                    = "${var.name_prefix}-online"
   vpc_id                  = module.vpc.vpc_id
