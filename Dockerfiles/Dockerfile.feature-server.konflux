@@ -1,4 +1,4 @@
-FROM registry.access.redhat.com/ubi8/python-311:1@sha256:6f6592717b9d88dc1ace1c4c144cfcbf59afa288edeb3cdd7a79d6d2f7467a11
+FROM registry.access.redhat.com/ubi8/python-311:1@sha256:22a463b4c203a37d827d768a003710f253cd29f2949bf0f4d19c4d687d5a94d0
 
 COPY requirements.txt requirements.txt
 RUN pip install -r requirements.txt
