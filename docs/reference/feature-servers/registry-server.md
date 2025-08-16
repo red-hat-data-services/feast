@@ -210,6 +210,10 @@ Most endpoints support these common query parameters:
   - `include_relationships` (optional): Include relationships for each feature view
   - `allow_cache` (optional): Whether to allow cached data
   - `tags` (optional): Filter by tags
+  - `entity` (optional): Filter feature views by entity name
+  - `feature` (optional): Filter feature views by feature name
+  - `feature_service` (optional): Filter feature views by feature service name
+  - `data_source` (optional): Filter feature views by data source name
   - `page` (optional): Page number for pagination
   - `limit` (optional): Number of items per page
   - `sort_by` (optional): Field to sort by
@@ -223,6 +227,26 @@ Most endpoints support these common query parameters:
   # With pagination and relationships
   curl -H "Authorization: Bearer <token>" \
     "http://localhost:6572/api/v1/feature_views?project=my_project&include_relationships=true&page=1&limit=5&sort_by=name"
+  
+  # Filter by entity
+  curl -H "Authorization: Bearer <token>" \
+    "http://localhost:6572/api/v1/feature_views?project=my_project&entity=user"
+  
+  # Filter by feature
+  curl -H "Authorization: Bearer <token>" \
+    "http://localhost:6572/api/v1/feature_views?project=my_project&feature=age"
+  
+  # Filter by data source
+  curl -H "Authorization: Bearer <token>" \
+    "http://localhost:6572/api/v1/feature_views?project=my_project&data_source=user_profile_source"
+  
+  # Filter by feature service
+  curl -H "Authorization: Bearer <token>" \
+    "http://localhost:6572/api/v1/feature_views?project=my_project&feature_service=user_service"
+  
+  # Multiple filters combined
+  curl -H "Authorization: Bearer <token>" \
+    "http://localhost:6572/api/v1/feature_views?project=my_project&entity=user&feature=age"
   ```
 
 #### Get Feature View
@@ -415,6 +439,7 @@ Most endpoints support these common query parameters:
   - `include_relationships` (optional): Include relationships for each feature service
   - `allow_cache` (optional): Whether to allow cached data
   - `tags` (optional): Filter by tags
+  - `feature_view` (optional): Filter feature services by feature view name
   - `page` (optional): Page number for pagination
   - `limit` (optional): Number of items per page
   - `sort_by` (optional): Field to sort by
@@ -428,6 +453,10 @@ Most endpoints support these common query parameters:
   # With pagination and relationships
   curl -H "Authorization: Bearer <token>" \
     "http://localhost:6572/api/v1/feature_services?project=my_project&include_relationships=true&page=1&limit=10"
+  
+  # Filter by feature view
+  curl -H "Authorization: Bearer <token>" \
+    "http://localhost:6572/api/v1/feature_services?project=my_project&feature_view=user_profile"
   ```
 
 #### Get Feature Service
@@ -772,6 +801,36 @@ All endpoints return JSON responses with the following general structure:
 - **Not Found (404)**: Requested resource does not exist
 - **Internal Server Error (500)**: Server-side error
 
+### Error Handling
+
+The REST API provides consistent error responses with HTTP status codes included in the JSON response body. All error responses follow this format:
+
+```json
+{
+  "status_code": 404,
+  "detail": "Entity 'user_id' does not exist in project 'demo_project'",
+  "error_type": "FeastObjectNotFoundException"
+}
+```
+
+#### Error Response Fields
+
+- **`status_code`**: The HTTP status code (e.g., 404, 422, 500)
+- **`detail`**: Human-readable error message describing the issue
+- **`error_type`**: The specific type of error that occurred
+
+#### HTTP Status Code Mapping
+
+| HTTP Status | Error Type | Description | Common Causes |
+|-------------|------------|-------------|---------------|
+| **400** | `HTTPException` | Bad Request | Invalid request format or parameters |
+| **401** | `HTTPException` | Unauthorized | Missing or invalid authentication token |
+| **403** | `FeastPermissionError` | Forbidden | Insufficient permissions to access the resource |
+| **404** | `FeastObjectNotFoundException` | Not Found | Requested entity, feature view, data source, etc. does not exist |
+| **422** | `ValidationError` / `RequestValidationError` / `ValueError` / `PushSourceNotFoundException` | Unprocessable Entity | Validation errors, missing required parameters, or invalid input |
+| **500** | `InternalServerError` | Internal Server Error | Unexpected server-side errors |
+
+
 #### Enhanced Response Formats
 
 The REST API now supports enhanced response formats for relationships and pagination:
@@ -947,3 +1006,406 @@ Please refer the [page](./../registry/registry-permissions.md) for more details 
 ## How to configure Authentication and Authorization ?
 
 Please refer the [page](./../../../docs/getting-started/concepts/permission.md) for more details on how to configure authentication and authorization.
+
+### Metrics
+
+#### Get Resource Counts
+- **Endpoint**: `GET /api/v1/metrics/resource_counts`
+- **Description**: Retrieve counts of registry objects (entities, data sources, feature views, etc.) for a project or across all projects.
+- **Parameters**:
+  - `project` (optional): Project name to filter resource counts (if not provided, returns counts for all projects)
+- **Examples**:
+  ```bash
+  # Get counts for specific project
+  curl -H "Authorization: Bearer <token>" \
+    "http://localhost:6572/api/v1/metrics/resource_counts?project=my_project"
+  
+  # Get counts for all projects
+  curl -H "Authorization: Bearer <token>" \
+    "http://localhost:6572/api/v1/metrics/resource_counts"
+  ```
+- **Response Example** (single project):
+  ```json
+  {
+    "project": "my_project",
+    "counts": {
+      "entities": 5,
+      "dataSources": 3,
+      "savedDatasets": 2,
+      "features": 12,
+      "featureViews": 4,
+      "featureServices": 2
+    }
+  }
+  ```
+- **Response Example** (all projects):
+  ```json
+  {
+    "total": {
+      "entities": 15,
+      "dataSources": 8,
+      "savedDatasets": 5,
+      "features": 35,
+      "featureViews": 12,
+      "featureServices": 6
+    },
+    "perProject": {
+      "project_a": {
+        "entities": 5,
+        "dataSources": 3,
+        "savedDatasets": 2,
+        "features": 12,
+        "featureViews": 4,
+        "featureServices": 2
+      },
+      "project_b": {
+        "entities": 10,
+        "dataSources": 5,
+        "savedDatasets": 3,
+        "features": 23,
+        "featureViews": 8,
+        "featureServices": 4
+      }
+    }
+  }
+  ```
+
+#### Get Recently Visited Objects
+- **Endpoint**: `GET /api/v1/metrics/recently_visited`
+- **Description**: Retrieve the most recently visited registry objects for the authenticated user in a project.
+- **Parameters**:
+  - `project` (optional): Project name to filter recent visits (defaults to current project)
+  - `object` (optional): Object type to filter recent visits (e.g., entities, features, feature_services)
+  - `page` (optional): Page number for pagination (starts from 1)
+  - `limit` (optional): Number of items per page (maximum 100)
+  - `sort_by` (optional): Field to sort by (e.g., timestamp, path, object)
+  - `sort_order` (optional): Sort order: "asc" or "desc" (default: "asc")
+- **Examples**:
+  ```bash
+  # Get all recent visits for a project
+  curl -H "Authorization: Bearer <token>" \
+    "http://localhost:6572/api/v1/metrics/recently_visited?project=my_project"
+  
+  # Get recent visits with pagination
+  curl -H "Authorization: Bearer <token>" \
+    "http://localhost:6572/api/v1/metrics/recently_visited?project=my_project&page=1&limit=10"
+  
+  # Get recent visits filtered by object type
+  curl -H "Authorization: Bearer <token>" \
+    "http://localhost:6572/api/v1/metrics/recently_visited?project=my_project&object=entities"
+  
+  # Get recent visits sorted by timestamp descending
+  curl -H "Authorization: Bearer <token>" \
+    "http://localhost:6572/api/v1/metrics/recently_visited?project=my_project&sort_by=timestamp&sort_order=desc"
+  ```
+- **Response Example** (without pagination):
+  ```json
+  {
+    "visits": [
+      {
+        "path": "/api/v1/entities/driver",
+        "timestamp": "2024-07-18T12:34:56.789Z",
+        "project": "my_project",
+        "user": "alice",
+        "object": "entities",
+        "object_name": "driver",
+        "method": "GET"
+      },
+      {
+        "path": "/api/v1/feature_services/user_service",
+        "timestamp": "2024-07-18T12:30:45.123Z",
+        "project": "my_project",
+        "user": "alice",
+        "object": "feature_services",
+        "object_name": "user_service",
+        "method": "GET"
+      }
+    ],
+    "pagination": {
+      "totalCount": 2
+    }
+  }
+  ```
+- **Response Example** (with pagination):
+  ```json
+  {
+    "visits": [
+      {
+        "path": "/api/v1/entities/driver",
+        "timestamp": "2024-07-18T12:34:56.789Z",
+        "project": "my_project",
+        "user": "alice",
+        "object": "entities",
+        "object_name": "driver",
+        "method": "GET"
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 10,
+      "totalCount": 25,
+      "totalPages": 3,
+      "hasNext": true,
+      "hasPrevious": false
+    }
+  }
+  ```
+
+**Note**: Recent visits are automatically logged when users access registry objects via the REST API. The logging behavior can be configured through the `feature_server.recent_visit_logging` section in `feature_store.yaml` (see configuration section below).
+
+
+### Search API
+
+#### Search Resources
+- **Endpoint**: `GET /api/v1/search`
+- **Description**: Search across all Feast resources including entities, feature views, features, feature services, data sources, and saved datasets. Supports cross-project search, fuzzy matching, relevance scoring, and advanced filtering.
+- **Parameters**:
+  - `query` (required): Search query string. Searches in resource names, descriptions, and tags. Empty string returns all resources.
+  - `projects` (optional): List of project names to search in. If not specified, searches all projects
+  - `allow_cache` (optional, default: `true`): Whether to allow cached data
+  - `tags` (optional): Filter results by tags in key:value format (e.g., `tags=environment:production&tags=team:ml`)
+  - `page` (optional, default: `1`): Page number for pagination (starts from 1)
+  - `limit` (optional, default: `50`, max: `100`): Number of items per page
+  - `sort_by` (optional, default: `match_score`): Field to sort by (`match_score`, `name`, or `type`)
+  - `sort_order` (optional, default: `desc`): Sort order ("asc" or "desc")
+- **Search Algorithm**:
+  - **Exact name match**: Highest priority (score: 100)
+  - **Description match**: High priority (score: 80) 
+  - **Feature name match**: Medium-high priority (score: 50)
+  - **Tag match**: Medium priority (score: 60)
+  - **Fuzzy name match**: Lower priority (score: 40, similarity threshold: 50%)
+- **Examples**:
+  ```bash
+  # Basic search across all projects
+  curl -H "Authorization: Bearer <token>" \
+    "http://localhost:6572/api/v1/search?query=user"
+  
+  # Search in specific projects
+  curl -H "Authorization: Bearer <token>" \
+    "http://localhost:6572/api/v1/search?query=driver&projects=ride_sharing&projects=analytics"
+  
+  # Search with tag filtering
+  curl -H "Authorization: Bearer <token>" \
+    "http://localhost:6572/api/v1/search?query=features&tags=environment:production&tags=team:ml"
+  
+  # Search with pagination and sorting
+  curl -H "Authorization: Bearer <token>" \
+    "http://localhost:6572/api/v1/search?query=conv_rate&page=1&limit=10&sort_by=name&sort_order=asc"
+  
+  # Empty query to list all resources with filtering
+  curl -H "Authorization: Bearer <token>" \
+    "http://localhost:6572/api/v1/search?query=&projects=my_project&page=1&limit=20"
+  ```
+- **Response Example**:
+  ```json
+  {
+    "query": "user",
+    "projects_searched": ["project1", "project2"],
+    "results": [
+      {
+        "type": "entity",
+        "name": "user_id",
+        "description": "Primary identifier for users",
+        "project": "project1",
+        "match_score": 100
+      },
+      {
+        "type": "featureView",
+        "name": "user_features",
+        "description": "User demographic and behavioral features",
+        "project": "project1",
+        "match_score": 100
+      },
+      {
+        "type": "feature",
+        "name": "user_age",
+        "description": "Age of the user in years",
+        "project": "project1",
+        "match_score": 80
+      },
+      {
+        "type": "dataSource",
+        "name": "user_analytics",
+        "description": "Analytics data for user behavior tracking",
+        "project": "project2",
+        "match_score": 80
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 50,
+      "totalCount": 4,
+      "totalPages": 1,
+      "hasNext": false,
+      "hasPrevious": false
+    },
+    "errors": []
+  }
+  ```
+- **Project Handling**:
+  - **No projects specified**: Searches all available projects
+  - **Single project**: Searches only that project (includes warning if project doesn't exist)
+  - **Multiple projects**: Searches only existing projects, includes warnings about non-existent ones
+  - **Empty projects list**: Treated as search all projects
+- **Error Responses**:
+  ```json
+  // Invalid sort_by parameter (HTTP 400)
+  {
+    "detail": "Invalid sort_by parameter: 'invalid_field'. Valid options are: ['match_score', 'name', 'type']"
+  }
+  
+  // Invalid sort_order parameter (HTTP 400)
+  {
+    "detail": "Invalid sort_order parameter: 'invalid_order'. Valid options are: ['asc', 'desc']"
+  }
+  
+  // Invalid pagination limit above maximum (HTTP 400)
+  {
+    "detail": "Invalid limit parameter: '150'. Must be less than or equal to 100"
+  }
+  
+  // Missing required query parameter (HTTP 422)
+  {
+    "detail": [
+      {
+        "type": "missing",
+        "loc": ["query_params", "query"],
+        "msg": "Field required"
+      }
+    ]
+  }
+  
+  // Successful response with warnings
+  {
+    "query": "user",
+    "projects_searched": ["existing_project"],
+    "results": [],
+    "pagination": {
+      "page": 1,
+      "limit": 50,
+      "totalCount": 0,
+      "totalPages": 0
+    },
+    "errors": ["Following projects do not exist: nonexistent_project"]
+  }
+
+  // Successful response but empty results
+  {
+    "query": "user",
+    "projects_searched": ["existing_project"],
+    "results": [],
+    "pagination": {
+      "page": 1,
+      "limit": 50,
+      "totalCount": 0,
+      "totalPages": 0
+    },
+    "errors": []
+  }
+  ```
+---
+#### Get Popular Tags
+- **Endpoint**: `GET /api/v1/metrics/popular_tags`
+- **Description**: Discover Feature Views by popular tags. Returns the most popular tags (tags assigned to maximum number of feature views) with their associated feature views. If no project is specified, returns popular tags across all projects.
+- **Parameters**:
+  - `project` (optional): Project name for popular tags (returns all projects if not specified)
+  - `limit` (optional, default: 4): Number of popular tags to return
+  - `allow_cache` (optional, default: true): Whether to allow cached responses
+- **Examples**:
+  ```bash
+  # Basic usage (all projects)
+  curl -H "Authorization: Bearer <token>" \
+    "http://localhost:6572/api/v1/metrics/popular_tags"
+  
+  # Specific project
+  curl -H "Authorization: Bearer <token>" \
+    "http://localhost:6572/api/v1/metrics/popular_tags?project=my_project"
+  
+  # Custom limit
+  curl -H "Authorization: Bearer <token>" \
+    "http://localhost:6572/api/v1/metrics/popular_tags?project=my_project&limit=3"
+  ```
+- **Response Model**: `PopularTagsResponse`
+- **Response Example**:
+  ```json
+  {
+    "popular_tags": [
+      {
+        "tag_key": "environment",
+        "tag_value": "production",
+        "feature_views": [
+          {
+            "name": "user_features",
+            "project": "my_project"
+          },
+          {
+            "name": "order_features",
+            "project": "my_project"
+          }
+        ],
+        "total_feature_views": 2
+      },
+      {
+        "tag_key": "team",
+        "tag_value": "ml_team",
+        "feature_views": [
+          {
+            "name": "user_features",
+            "project": "my_project"
+          }
+        ],
+        "total_feature_views": 1
+      }
+    ],
+    "metadata": {
+      "totalFeatureViews": 3,
+      "totalTags": 2,
+      "limit": 4
+    }
+  }
+  ```
+
+**Response Models:**
+- `FeatureViewInfo`: Contains feature view name and project
+- `PopularTagInfo`: Contains tag information and associated feature views
+- `PopularTagsMetadata`: Contains metadata about the response
+- `PopularTagsResponse`: Main response model containing popular tags and metadata
+
+## Registry Server Configuration: Recent Visit Logging
+
+The registry server supports configuration of recent visit logging via the `feature_server` section in `feature_store.yaml`.
+
+**Example:**
+```yaml
+feature_server:
+  type: local
+  recent_visit_logging:
+    limit: 100  # Number of recent visits to store per user
+    log_patterns:
+      - ".*/entities/(?!all$)[^/]+$"
+      - ".*/data_sources/(?!all$)[^/]+$"
+      - ".*/feature_views/(?!all$)[^/]+$"
+      - ".*/features/(?!all$)[^/]+$"
+      - ".*/feature_services/(?!all$)[^/]+$"
+      - ".*/saved_datasets/(?!all$)[^/]+$"
+      - ".*/custom_api/.*"
+```
+
+**Configuration Options:**
+- **recent_visit_logging.limit**: Maximum number of recent visits to store per user (default: 100).
+- **recent_visit_logging.log_patterns**: List of regex patterns for API paths to log as recent visits.
+
+**Default Log Patterns:**
+- `.*/entities/(?!all$)[^/]+$` - Individual entity endpoints
+- `.*/data_sources/(?!all$)[^/]+$` - Individual data source endpoints  
+- `.*/feature_views/(?!all$)[^/]+$` - Individual feature view endpoints
+- `.*/features/(?!all$)[^/]+$` - Individual feature endpoints
+- `.*/feature_services/(?!all$)[^/]+$` - Individual feature service endpoints
+- `.*/saved_datasets/(?!all$)[^/]+$` - Individual saved dataset endpoints
+
+**Behavior:**
+- Only requests matching one of the `log_patterns` will be tracked
+- Only the most recent `limit` visits per user are stored
+- Metrics endpoints (`/metrics/*`) are automatically excluded from logging to prevent circular references
+- Visit data is stored per user and per project in the registry metadata
+

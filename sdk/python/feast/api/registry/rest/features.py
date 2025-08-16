@@ -69,11 +69,14 @@ def get_feature_router(grpc_handler) -> APIRouter:
             feature_view=feature_view,
             name=name,
         )
+
         response = grpc_call(grpc_handler.GetFeature, req)
+
         if include_relationships:
             response["relationships"] = get_object_relationships(
                 grpc_handler, "feature", name, project
             )
+
         if response:
             dtype_str = response.get("type") or response.get("dtype")
             value_type_enum = (
@@ -94,6 +97,7 @@ def get_feature_router(grpc_handler) -> APIRouter:
                 tags=response.get("tags", response.get("labels", {})) or {},
             )
             response["featureDefinition"] = render_feature_code(context)
+
         return response
 
     @router.get("/features/all")

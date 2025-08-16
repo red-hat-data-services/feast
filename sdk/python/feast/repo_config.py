@@ -49,6 +49,7 @@ BATCH_ENGINE_CLASS_FOR_TYPE = {
     "lambda": "feast.infra.compute_engines.aws_lambda.lambda_engine.LambdaComputeEngine",
     "k8s": "feast.infra.compute_engines.kubernetes.k8s_engine.KubernetesComputeEngine",
     "spark.engine": "feast.infra.compute_engines.spark.compute.SparkComputeEngine",
+    "ray.engine": "feast.infra.compute_engines.ray.compute.RayComputeEngine",
 }
 
 LEGACY_ONLINE_STORE_CLASS_FOR_TYPE = {
@@ -101,6 +102,7 @@ OFFLINE_STORE_CLASS_FOR_TYPE = {
     "remote": "feast.infra.offline_stores.remote.RemoteOfflineStore",
     "couchbase.offline": "feast.infra.offline_stores.contrib.couchbase_offline_store.couchbase.CouchbaseColumnarOfflineStore",
     "clickhouse": "feast.infra.offline_stores.contrib.clickhouse_offline_store.clickhouse.ClickhouseOfflineStore",
+    "ray": "feast.infra.offline_stores.contrib.ray_offline_store.ray.RayOfflineStore",
 }
 
 FEATURE_SERVER_CONFIG_CLASS_FOR_TYPE = {
@@ -308,11 +310,22 @@ class RepoConfig(FeastBaseModel):
     def auth_config(self):
         if not self._auth:
             if isinstance(self.auth, Dict):
-                is_oidc_client = (
-                    self.auth.get("type") == AuthType.OIDC.value
-                    and "username" in self.auth
-                    and "password" in self.auth
-                    and "client_secret" in self.auth
+                # treat this auth block as *client-side* OIDC when it matches
+                #   1)  ROPG            – username + password + client_secret
+                #   2)  client-credentials – client_secret only
+                #   3)  static token    – token
+                is_oidc_client = self.auth.get("type") == AuthType.OIDC.value and (
+                    (
+                        "username" in self.auth
+                        and "password" in self.auth
+                        and "client_secret" in self.auth
+                    )  # 1
+                    or (
+                        "client_secret" in self.auth
+                        and "username" not in self.auth
+                        and "password" not in self.auth
+                    )  # 2
+                    or ("token" in self.auth)  # 3
                 )
                 self._auth = get_auth_config_from_type(
                     "oidc_client" if is_oidc_client else self.auth.get("type")

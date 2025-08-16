@@ -59,7 +59,6 @@ REQUIRED = [
     "psutil",
     "bigtree>=0.19.2",
     "pyjwt",
-    "transformers>=4.36.0",
 ]
 
 GCP_REQUIRED = [
@@ -177,8 +176,11 @@ CLICKHOUSE_REQUIRED = ["clickhouse-connect>=0.7.19"]
 MCP_REQUIRED = ["fastapi_mcp"]
 
 RAG_REQUIRED = [
+    "transformers>=4.36.0",
     "datasets>=3.6.0",
 ]
+
+RAY_REQUIRED = ["ray>=2.47.0"]
 
 CI_REQUIRED = (
     [
@@ -256,6 +258,7 @@ CI_REQUIRED = (
     + CLICKHOUSE_REQUIRED
     + MCP_REQUIRED
     + RAG_REQUIRED
+    + RAY_REQUIRED
 )
 MINIMAL_REQUIRED = (
     GCP_REQUIRED
@@ -358,6 +361,7 @@ setup(
         "clickhouse": CLICKHOUSE_REQUIRED,
         "mcp": MCP_REQUIRED,
         "rag": RAG_REQUIRED,
+        "ray": RAY_REQUIRED,
     },
     include_package_data=True,
     license="Apache",
