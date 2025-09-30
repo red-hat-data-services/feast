@@ -7,9 +7,10 @@ RUN pip install -r requirements.txt
 RUN chmod g+w $(python -c "import feast.ui as ui; print(ui.__path__)" | tr -d "[']")/build/projects-list.json
 
 LABEL com.redhat.component="odh-feature-server" \
-      name="odh-feature-server-rhel8" \
+      name="rhoai/odh-feature-server-rhel8" \
       description="odh-feature-server" \
       summary="odh-feature-server" \
       io.openshift.expose-services="" \
       io.k8s.display-name="odh-feature-server" \
-      io.k8s.description="odh-feature-server"
+      io.k8s.description="odh-feature-server" \
+      cpe="cpe:/a:redhat:openshift_ai:2.20::el8"
