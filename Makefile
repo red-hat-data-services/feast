@@ -100,7 +100,7 @@ lock-python-dependencies-all:
 			--no-emit-package milvus-lite \
 			--generate-hashes --output-file sdk/python/requirements/py$(ver)-minimal-sdist-requirements.txt" && \
 		pixi run --environment $(call get_env_name,$(ver)) --manifest-path infra/scripts/pixi/pixi.toml \
-			"uv pip install -p $(ver) pybuild-deps==0.5.0 && \
+			"uv pip install -p $(ver) pip==23.3.2 pybuild-deps==0.5.0 && \
 			pybuild-deps compile --generate-hashes \
 			-o sdk/python/requirements/py$(ver)-minimal-sdist-requirements-build.txt \
 			sdk/python/requirements/py$(ver)-minimal-sdist-requirements.txt" && \
