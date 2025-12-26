@@ -70,7 +70,7 @@ gcp = [
     "google-cloud-datastore>=2.16.0,<3",
     "google-cloud-storage>=1.34.0,<3",
     "google-cloud-bigtable>=2.11.0,<3",
-    "fsspec<=2024.9.0",
+    "fsspec<=2025.3.0",
 ]
 ge = ["great_expectations>=0.15.41,<1"]
 go = ["cffi>=1.15.0"]
@@ -94,7 +94,7 @@ k8s = ["kubernetes"]
 image = [
     "feast[pytorch]",
     "timm>=0.6.0",
-    "Pillow>=8.0.0",
+    "Pillow<12.0.0,>=10.0.0",
     "scikit-learn>=1.0.0",
 ]
 milvus = [
@@ -146,7 +146,7 @@ ci = [
     "mock==2.0.0",
     "moto<5",
     "mypy>=1.4.1,<1.11.3",
-    "urllib3>=1.25.4,<3",
+    "urllib3>=2.6.0,<3",
     "psutil==5.9.0",
     "py>=1.11.0",  # https://github.com/pytest-dev/pytest/issues/10420
     "pytest>=6.0.0,<8",
