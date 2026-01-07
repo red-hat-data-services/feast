@@ -4,23 +4,23 @@
 #
 #    pip-compile --generate-hashes requirements-ppc64le.in
 #
-bottle==0.12.25 \
+bottle==0.12.25 ; platform_machine == "ppc64le" \
     --hash=sha256:d6f15f9d422670b7c073d63bd8d287b135388da187a0f3e3c19293626ce034ea \
     --hash=sha256:e1a9c94970ae6d710b3fb4526294dfeb86f2cb4a81eff3a4b98dc40fb0e5e021
     # via
     #   -r requirements-ppc64le.in
     #   conan
-build==1.3.0 \
+build==1.3.0 ; platform_machine == "ppc64le" \
     --hash=sha256:698edd0ea270bde950f53aed21f3a0135672206f3911e0176261a31e0e07b397 \
     --hash=sha256:7145f0b5061ba90a1500d60bd1b13ca0a8a4cebdd0cc16ed8adf1c0e739f43b4
     # via -r requirements-ppc64le.in
-certifi==2025.8.3 \
+certifi==2025.8.3 ; platform_machine == "ppc64le" \
     --hash=sha256:e564105f78ded564e3ae7c923924435e1daa7463faeab5bb932bc53ffae63407 \
     --hash=sha256:f6c12493cfb1b06ba2ff328595af9350c65d6644968e5d3a2ffd78699af217a5
     # via
     #   -r requirements-ppc64le.in
     #   requests
-charset-normalizer==3.4.3 \
+charset-normalizer==3.4.3 ; platform_machine == "ppc64le" \
     --hash=sha256:00237675befef519d9af72169d8604a067d92755e84fe76492fef5441db05b91 \
     --hash=sha256:02425242e96bcf29a49711b0ca9f37e451da7c70562bc10e8ed992a5a7a25cc0 \
     --hash=sha256:027b776c26d38b7f15b26a5da1044f376455fb3766df8fc38563b4efbc515154 \
@@ -103,16 +103,16 @@ charset-normalizer==3.4.3 \
     # via
     #   -r requirements-ppc64le.in
     #   requests
-colorama==0.4.6 \
+colorama==0.4.6 ; platform_machine == "ppc64le" \
     --hash=sha256:08695f5cb7ed6e0531a20572697297273c47b8cae5a63ffc6d6ed5c201be6e44 \
     --hash=sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6
     # via
     #   -r requirements-ppc64le.in
     #   conan
-conan==1.64.1 \
+conan==1.64.1 ; platform_machine == "ppc64le" \
     --hash=sha256:969c5e2f504963ef9211605939a519588d63fd218ada5bb227272a8c653f2ec4
     # via -r requirements-ppc64le.in
-cython==3.0.8 \
+cython==3.0.8 ; platform_machine == "ppc64le" \
     --hash=sha256:000dc9e135d0eec6ecb2b40a5b02d0868a2f8d2e027a41b0fe16a908a9e6de02 \
     --hash=sha256:05d7eddc668ae7993643f32c7661f25544e791edb745758672ea5b1a82ecffa6 \
     --hash=sha256:0c38c9f0bcce2df0c3347285863621be904ac6b64c5792d871130569d893efd7 \
@@ -172,31 +172,29 @@ cython==3.0.8 \
     --hash=sha256:fa97893d99385386925d00074654aeae3a98867f298d1e12ceaf38a9054a9bae \
     --hash=sha256:fe81b339cffd87c0069c6049b4d33e28bdd1874625ee515785bf42c9fdff3658
     # via -r requirements-ppc64le.in
-distro==1.8.0 \
+distro==1.8.0 ; platform_machine == "ppc64le" \
     --hash=sha256:02e111d1dc6a50abb8eed6bf31c3e48ed8b0830d1ea2a1b78c61765c2513fdd8 \
     --hash=sha256:99522ca3e365cac527b44bde033f64c6945d90eb9f769703caaec52b09bbd3ff
-    # via
-    #   -r requirements-ppc64le.in
-    #   conan
-fasteners==0.20 \
+    # via -r requirements-ppc64le.in
+fasteners==0.20 ; platform_machine == "ppc64le" \
     --hash=sha256:55dce8792a41b56f727ba6e123fcaee77fd87e638a6863cec00007bfea84c8d8 \
     --hash=sha256:9422c40d1e350e4259f509fb2e608d6bc43c0136f79a00db1b49046029d0b3b7
     # via
     #   -r requirements-ppc64le.in
     #   conan
-idna==3.10 \
+idna==3.10 ; platform_machine == "ppc64le" \
     --hash=sha256:12f65c9b470abda6dc35cf8e63cc574b1c52b11df2c86030af0ac09b01b13ea9 \
     --hash=sha256:946d195a0d259cbba61165e88e65941f16e9b36ea6ddb97f00452bae8b1287d3
     # via
     #   -r requirements-ppc64le.in
     #   requests
-jinja2==3.1.6 \
+jinja2==3.1.6 ; platform_machine == "ppc64le" \
     --hash=sha256:0137fb05990d35f1275a587e9aee6d56da821fc83491a0fb838183be43f66d6d \
     --hash=sha256:85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67
     # via
     #   -r requirements-ppc64le.in
     #   conan
-markupsafe==3.0.2 \
+markupsafe==3.0.2 ; platform_machine == "ppc64le" \
     --hash=sha256:0bff5e0ae4ef2e1ae4fdf2dfd5b76c75e5c2fa4132d05fc1b0dabcd20c7e28c4 \
     --hash=sha256:0f4ca02bea9a23221c0182836703cbf8930c5e9454bacce27e767509fa286a30 \
     --hash=sha256:1225beacc926f536dc82e45f8a4d68502949dc67eea90eab715dea3a21c1b5f0 \
@@ -261,7 +259,7 @@ markupsafe==3.0.2 \
     # via
     #   -r requirements-ppc64le.in
     #   jinja2
-ninja==1.13.0 \
+ninja==1.13.0 ; platform_machine == "ppc64le" \
     --hash=sha256:11be2d22027bde06f14c343f01d31446747dbb51e72d00decca2eb99be911e2f \
     --hash=sha256:1c97223cdda0417f414bf864cfb73b72d8777e57ebb279c5f6de368de0062988 \
     --hash=sha256:3c0b40b1f0bba764644385319028650087b4c1b18cdfa6f45cb39a3669b81aa9 \
@@ -282,13 +280,13 @@ ninja==1.13.0 \
     --hash=sha256:fb46acf6b93b8dd0322adc3a4945452a4e774b75b91293bafcc7b7f8e6517dfa \
     --hash=sha256:fb8ee8719f8af47fed145cced4a85f0755dd55d45b2bddaf7431fa89803c5f3e
     # via -r requirements-ppc64le.in
-node-semver==0.6.1 \
+node-semver==0.6.1 ; platform_machine == "ppc64le" \
     --hash=sha256:4016f7c1071b0493f18db69ea02d3763e98a633606d7c7beca811e53b5ac66b7 \
     --hash=sha256:d4bf83873894591a0cbb6591910d96917fbadc9731e8e39e782d3a2fbc2b841e
     # via
     #   -r requirements-ppc64le.in
     #   conan
-numpy==2.3.3 \
+numpy==2.3.3 ; platform_machine == "ppc64le" \
     --hash=sha256:067e3d7159a5d8f8a0b46ee11148fc35ca9b21f61e3c49fbd0a027450e65a33b \
     --hash=sha256:0edd58682a399824633b66885d699d7de982800053acf20be1eaa46d92009c54 \
     --hash=sha256:0ffc4f5caba7dfcbe944ed674b7eef683c7e94874046454bb79ed7ee0236f59d \
@@ -364,51 +362,51 @@ numpy==2.3.3 \
     --hash=sha256:f0ddb4b96a87b6728df9362135e764eac3cfa674499943ebc44ce96c478ab125 \
     --hash=sha256:f5415fb78995644253370985342cd03572ef8620b934da27d77377a2285955bf
     # via -r requirements-ppc64le.in
-packaging==25.0 \
+packaging==25.0 ; platform_machine == "ppc64le" \
     --hash=sha256:29572ef2b1f17581046b3a2227d5c611fb25ec70ca1ba8554b24b0e69331a484 \
     --hash=sha256:d443872c98d677bf60f6a1f2f8c1cb748e8fe762d2bf9d3148b5599295b0fc4f
     # via
     #   build
     #   setuptools-scm
-patch-ng==1.17.4 \
+patch-ng==1.17.4 ; platform_machine == "ppc64le" \
     --hash=sha256:627abc5bd723c8b481e96849b9734b10065426224d4d22cd44137004ac0d4ace
     # via
     #   -r requirements-ppc64le.in
     #   conan
-pluginbase==1.0.1 \
+pluginbase==1.0.1 ; platform_machine == "ppc64le" \
     --hash=sha256:ff6c33a98fce232e9c73841d787a643de574937069f0d18147028d70d7dee287
     # via
     #   -r requirements-ppc64le.in
     #   conan
-pybind11==3.0.1 \
+pybind11==3.0.1 ; platform_machine == "ppc64le" \
     --hash=sha256:9c0f40056a016da59bab516efb523089139fcc6f2ba7e4930854c61efb932051 \
     --hash=sha256:aa8f0aa6e0a94d3b64adfc38f560f33f15e589be2175e103c0a33c6bce55ee89
     # via -r requirements-ppc64le.in
-pygments==2.19.2 \
+pygments==2.19.2 ; platform_machine == "ppc64le" \
     --hash=sha256:636cb2477cec7f8952536970bc533bc43743542f70392ae026374600add5b887 \
     --hash=sha256:86540386c03d588bb81d44bc3928634ff26449851e99741617ecb9037ee5ec0b
     # via
     #   -r requirements-ppc64le.in
     #   conan
-pyjwt==2.10.1 \
+pyjwt==2.10.1 ; platform_machine == "ppc64le" \
     --hash=sha256:3cc5772eb20009233caf06e9d8a0577824723b44e6648ee0a2aedb6cf9381953 \
     --hash=sha256:dcdd193e30abefd5debf142f9adfcdd2b58004e644f25406ffaebd50bd98dacb
     # via
     #   -r requirements-ppc64le.in
     #   conan
-pyproject-hooks==1.1.0 \
+pyproject-hooks==1.1.0 ; platform_machine == "ppc64le" \
     --hash=sha256:4b37730834edbd6bd37f26ece6b44802fb1c1ee2ece0e54ddff8bfc06db86965 \
     --hash=sha256:7ceeefe9aec63a1064c18d939bdc3adf2d8aa1988a510afec15151578b232aa2
     # via
     #   -r requirements-ppc64le.in
     #   build
-python-dateutil==2.9.0.post0 \
+python-dateutil==2.9.0.post0 ; platform_machine == "ppc64le" \
     --hash=sha256:37dd54208da7e1cd875388217d5e00ebd4179249f90fb72437e91a35459a0ad3 \
     --hash=sha256:a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427
     # via
     #   -r requirements-ppc64le.in
     #   conan
-pyyaml==6.0.2 \
+pyyaml==6.0.2 ; platform_machine == "ppc64le" \
     --hash=sha256:01179a4a8559ab5de078078f37e5c1a30d76bb88519906844fd7bdea1b7729ff \
     --hash=sha256:0833f8694549e586547b576dcfaba4a6b55b9e96098b36cdc7ebefe667dfed48 \
     --hash=sha256:0a9a2848a5b7feac301353437eb7d5957887edbf81d56e903999a75a3d743086 \
@@ -465,37 +463,37 @@ pyyaml==6.0.2 \
     # via
     #   -r requirements-ppc64le.in
     #   conan
-requests==2.32.5 \
+requests==2.32.5 ; platform_machine == "ppc64le" \
     --hash=sha256:2462f94637a34fd532264295e186976db0f5d453d1cdd31473c85a6a161affb6 \
     --hash=sha256:dbba0bac56e100853db0ea71b82b4dfd5fe2bf6d3754a8893c3af500cec7d7cf
     # via
     #   -r requirements-ppc64le.in
     #   conan
-setuptools-scm==9.2.0 \
+setuptools-scm==9.2.0 ; platform_machine == "ppc64le" \
     --hash=sha256:6662c9b9497b6c9bf13bead9d7a9084756f68238302c5ed089fb4dbd29d102d7 \
     --hash=sha256:c551ef54e2270727ee17067881c9687ca2aedf179fa5b8f3fab9e8d73bdc421f
     # via -r requirements-ppc64le.in
-six==1.16.0 \
+six==1.16.0 ; platform_machine == "ppc64le" \
     --hash=sha256:1e61c37477a1626458e36f7b1d82aa5c9b094fa4802892072e49de9c60c4c926 \
     --hash=sha256:8abb2f1d86890a2dfb989f9a77cfcfd3e47c2a354b01111771326f8aa26e0254
     # via
     #   -r requirements-ppc64le.in
     #   conan
     #   python-dateutil
-tqdm==4.67.1 \
+tqdm==4.67.1 ; platform_machine == "ppc64le" \
     --hash=sha256:26445eca388f82e72884e0d580d5464cd801a3ea01e63e5601bdff9ba6a48de2 \
     --hash=sha256:f8aef9c52c08c13a65f30ea34f4e5aac3fd1a34959879d7e59e63027286627f2
     # via
     #   -r requirements-ppc64le.in
     #   conan
-urllib3==1.26.20 \
+urllib3==1.26.20 ; platform_machine == "ppc64le" \
     --hash=sha256:0ed14ccfbf1c30a9072c7ca157e4319b70d65f623e91e7b32fadb2853431016e \
     --hash=sha256:40c2dc0c681e47eb8f90e7e27bf6ff7df2e677421fd46756da1161c39ca70d32
     # via
     #   -r requirements-ppc64le.in
     #   conan
     #   requests
-wheel==0.45.1 \
+wheel==0.45.1 ; platform_machine == "ppc64le" \
     --hash=sha256:661e1abd9198507b1409a20c02106d9670b2576e916d58f520316666abca6729 \
     --hash=sha256:708e7481cc80179af0e556bbf0cc00b8444c7321e2700b8d8580231d13017248
     # via -r requirements-ppc64le.in
