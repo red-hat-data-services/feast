@@ -4,19 +4,20 @@ metadata:
   annotations:
     build.appstudio.openshift.io/repo: https://github.com/red-hat-data-services/feast?rev={{revision}}
     build.appstudio.redhat.com/commit_sha: '{{revision}}'
+    build.appstudio.redhat.com/pull_request_number: '{{pull_request_number}}'
     build.appstudio.redhat.com/target_branch: '{{target_branch}}'
-    pipelinesascode.tekton.dev/cancel-in-progress: "false"
+    pipelinesascode.tekton.dev/cancel-in-progress: "true"
     pipelinesascode.tekton.dev/max-keep-runs: "3"
-    pipelinesascode.tekton.dev/on-cel-expression: event == "push" && target_branch
+    pipelinesascode.tekton.dev/on-cel-expression: event == "pull_request" && target_branch
       == "rhoai-3.4" && ( "sdk/python/feast/infra/feature_servers/multicloud/***".pathChanged()
-      || ".tekton/odh-feature-server-v3-4-push.yaml".pathChanged() || "Dockerfiles/Dockerfile.feature-server.konflux".pathChanged()
+      || ".tekton/odh-feature-server-v3-4-pull-request.yaml".pathChanged() || "Dockerfiles/Dockerfile.feature-server.konflux".pathChanged()
       )
   creationTimestamp: null
   labels:
     appstudio.openshift.io/application: rhoai-v3-4
     appstudio.openshift.io/component: odh-feature-server-v3-4
     pipelines.appstudio.openshift.io/type: build
-  name: odh-feature-server-v3-4-on-push
+  name: odh-feature-server-v3-4-on-pull-request
   namespace: rhoai-tenant
 spec:
   params:
@@ -25,7 +26,9 @@ spec:
   - name: revision
     value: '{{revision}}'
   - name: output-image
-    value: quay.io/rhoai/odh-feature-server-rhel9:{{revision}}
+    value: quay.io/rhoai/odh-feature-server-rhel9:on-pr-{{revision}}
+  - name: image-expires-after
+    value: 5d
   - name: build-platforms
     value:
     - linux/x86_64
