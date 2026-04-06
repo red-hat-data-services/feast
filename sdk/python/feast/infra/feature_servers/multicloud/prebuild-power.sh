@@ -8,9 +8,10 @@ WORKDIR=$(pwd)
 CMAKE_VERSION=3.30.5
 CMAKE_REQUIRED_VERSION=3.30.5
 
-dnf install -y make cmake ninja-build libomp-devel \
-               git python${PYTHON_VERSION} python${PYTHON_VERSION}-devel python${PYTHON_VERSION}-pip \
-               openssl openssl-devel zlib-devel libuuid-devel 
+microdnf install -y make cmake ninja-build libomp-devel \
+               git gcc gcc-c++ tar patch unzip \
+               python${PYTHON_VERSION} python${PYTHON_VERSION}-devel python${PYTHON_VERSION}-pip \
+               openssl openssl-devel zlib-devel libuuid-devel && microdnf clean all
 
 export CC=gcc
 export CXX=g++
@@ -93,8 +94,8 @@ cd ../../..
 # Build Milvus-Lite  (Python package)
 #######################################################
 echo "Building milvus-lite..."
-dnf install -y perl ncurses-devel wget openblas-devel cargo gcc gcc-c++ libstdc++-static which libaio \
-               libtool m4 autoconf automake zlib-devel libffi-devel scl-utils xz
+microdnf install -y perl ncurses-devel wget openblas-devel cargo gcc gcc-c++ libstdc++-static which libaio \
+               libtool m4 autoconf automake zlib-devel libffi-devel scl-utils xz && microdnf clean all
 
 python${PYTHON_VERSION} -m pip install conan==1.64.1 setuptools==70.0.0
 

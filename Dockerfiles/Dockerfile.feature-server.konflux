@@ -1,10 +1,7 @@
-FROM registry.access.redhat.com/ubi9/python-311@sha256:9d3578927c6168e364f963b642fb15d5c4b1224a31c11da2ae970f05708724ae
+FROM registry.access.redhat.com/ubi9/python-312-minimal:1
 
-# OS Packages needs to be installed as root
 USER 0
-
-# Upgrade base packages for consistency across all arches
-RUN dnf upgrade -y --refresh && dnf clean all
+RUN microdnf install -y gcc gcc-c++ libpq-devel python3.12-devel && microdnf clean all
 
 # Copy Power prebuild script
 COPY prebuild-power.sh /prebuild-power.sh
