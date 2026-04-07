@@ -8,9 +8,10 @@ COPY prebuild-power.sh /prebuild-power.sh
 RUN chmod +x /prebuild-power.sh
 
 # Run prebuild script conditionally (Power only)
-RUN if [ "$(uname -m)" = "ppc64le" ]; then \
-        echo "Power architecture detected. Running prebuild script..."; \
-        /prebuild-power.sh && python3 -m pip install /wheelhouse/*.whl; \
+RUN set -e && if [ "$(uname -m)" = "ppc64le" ]; then \
+        echo "Power architecture detected. Running prebuild script..." && \
+        /prebuild-power.sh && \
+        python3 -m pip install /wheelhouse/*.whl && \
         echo "Listing built wheels:" && ls -lh /wheelhouse; \
     else \
         echo "Non-Power architecture detected; skipping Power prebuild"; \

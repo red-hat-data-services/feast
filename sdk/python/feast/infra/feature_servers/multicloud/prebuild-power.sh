@@ -11,16 +11,20 @@ CMAKE_REQUIRED_VERSION=3.30.5
 
 microdnf install -y make cmake ninja-build libomp-devel \
                git gcc gcc-c++ tar patch unzip \
-               openssl openssl-devel zlib-devel libuuid-devel && microdnf clean all
+               openssl openssl-devel zlib-devel libuuid-devel \
+               libcurl-devel && microdnf clean all
 
 export CC=gcc
 export CXX=g++
-export CXXFLAGS="-std=c++17"
+# -mlongcall: generates indirect calls to avoid R_PPC64_REL24 overflow (24-bit branch limit)
+#   on large ppc64le binaries like DuckDB. -mcmodel=medium alone only fixes TOC/data access.
+export CFLAGS="-mcmodel=medium -mlongcall"
+export CXXFLAGS="-std=c++17 -mcmodel=medium -mlongcall -Wno-attributes"
+export LDFLAGS="-Wl,--no-toc-optimize"
+# DuckDB's setup.py reads this to override its default compile flags
+export DUCKDB_COMPILE_FLAGS="-mcmodel=medium -mlongcall -Wno-attributes -g0"
 
-# Ensure CXXFLAGS and LINKFLAGS are initialized
 : "${CMAKE_ARGS:=""}"
-: "${CXXFLAGS:=""}"
-: "${CFLAGS:=""}"
 : "${LINKFLAGS:=""}"
 
 # Installing Python build dependencies
@@ -103,4 +107,4 @@ git clone https://github.com/milvus-io/milvus-lite
 cd milvus-lite/python
 git checkout v2.4.12
 git submodule update --init --recursive
-python${PYTHON_VERSION} -m pip install -v -e .
+python${PYTHON_VERSION} -m pip install -v .
