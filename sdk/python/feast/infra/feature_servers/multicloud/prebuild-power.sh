@@ -3,14 +3,14 @@ set -Eeuo pipefail
 trap 'echo "[prebuild-power] failed at line $LINENO"; exit 1' ERR
 shopt -s dotglob nullglob
 
-PYTHON_VERSION=3.11
+# Must match the Konflux base image (ubi9/python-*-minimal); wheel tags must match `pip` in Dockerfile.
+PYTHON_VERSION=3.12
 WORKDIR=$(pwd)
 CMAKE_VERSION=3.30.5
 CMAKE_REQUIRED_VERSION=3.30.5
 
 microdnf install -y make cmake ninja-build libomp-devel \
                git gcc gcc-c++ tar patch unzip \
-               python${PYTHON_VERSION} python${PYTHON_VERSION}-devel python${PYTHON_VERSION}-pip \
                openssl openssl-devel zlib-devel libuuid-devel && microdnf clean all
 
 export CC=gcc
@@ -24,7 +24,7 @@ export CXXFLAGS="-std=c++17"
 : "${LINKFLAGS:=""}"
 
 # Installing Python build dependencies
-python${PYTHON_VERSION} -m pip install build wheel setuptools ninja pybind11 numpy==2.3.3 setuptools_scm Cython
+python${PYTHON_VERSION} -m pip install build wheel 'setuptools<82' ninja pybind11 numpy==2.3.3 setuptools_scm Cython
 
 # Directory to collect built wheels
 mkdir -p /wheelhouse
@@ -50,7 +50,7 @@ cd $WORKDIR
 #######################################################
 echo "Building grpcio..."
 export GRPC_PYTHON_BUILD_SYSTEM_OPENSSL=1
-pip install grpcio==1.62.3
+python${PYTHON_VERSION} -m pip install grpcio==1.62.3
 
 #######################################################
 # Build Pyarrow  (Python package)

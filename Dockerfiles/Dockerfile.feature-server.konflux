@@ -10,14 +10,16 @@ RUN chmod +x /prebuild-power.sh
 # Run prebuild script conditionally (Power only)
 RUN if [ "$(uname -m)" = "ppc64le" ]; then \
         echo "Power architecture detected. Running prebuild script..."; \
-        /prebuild-power.sh && pip install /wheelhouse/*.whl; \
+        /prebuild-power.sh && python3 -m pip install /wheelhouse/*.whl; \
         echo "Listing built wheels:" && ls -lh /wheelhouse; \
     else \
         echo "Non-Power architecture detected; skipping Power prebuild"; \
     fi
 
 COPY requirements.txt requirements.txt
-RUN pip install -r requirements.txt
+# setuptools >=82 removed pkg_resources; grpcio's legacy setup.py (sdist on ppc64le) needs it.
+RUN python3 -m pip install 'setuptools<82' wheel && \
+    python3 -m pip install -r requirements.txt
 
 # modify permissions to support running with a random uid
 RUN chmod g+w $(python -c "import feast.ui as ui; print(ui.__path__)" | tr -d "[']")/build/projects-list.json
