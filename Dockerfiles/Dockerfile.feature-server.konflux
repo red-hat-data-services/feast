@@ -1,13 +1,14 @@
-FROM registry.access.redhat.com/ubi9/python-312-minimal:1
+# Stage 1: Builder — full image with complete toolchain for compilation
+FROM registry.access.redhat.com/ubi9/python-312:1 AS builder
 
 USER 0
-RUN microdnf install -y gcc gcc-c++ libpq-devel python3.12-devel && microdnf clean all
 
-# Copy Power prebuild script
+# libpq-devel needed for psycopg-c compilation
+RUN dnf install -y libpq-devel && dnf clean all
+
 COPY prebuild-power.sh /prebuild-power.sh
 RUN chmod +x /prebuild-power.sh
 
-# Run prebuild script conditionally (Power only)
 RUN set -e && if [ "$(uname -m)" = "ppc64le" ]; then \
         echo "Power architecture detected. Running prebuild script..." && \
         /prebuild-power.sh && \
@@ -22,10 +23,19 @@ COPY requirements.txt requirements.txt
 RUN python3 -m pip install 'setuptools<82' wheel && \
     python3 -m pip install -r requirements.txt
 
+# Stage 2: Runtime — minimal image for light and secure footprint
+FROM registry.access.redhat.com/ubi9/python-312-minimal:1
+
+USER 0
+# Runtime-only native libraries needed by installed pip packages
+RUN microdnf install -y libpq && microdnf clean all
+
+# Copy the full Python environment (venv, site-packages, scripts) from builder
+COPY --from=builder /opt/app-root /opt/app-root
+
 # modify permissions to support running with a random uid
 RUN chmod g+w $(python -c "import feast.ui as ui; print(ui.__path__)" | tr -d "[']")/build/projects-list.json
 
-# default user
 USER 1001
 
 LABEL com.redhat.component="odh-feature-server" \
@@ -35,4 +45,3 @@ LABEL com.redhat.component="odh-feature-server" \
       io.openshift.expose-services="" \
       io.k8s.display-name="odh-feature-server" \
       io.k8s.description="odh-feature-server"
-

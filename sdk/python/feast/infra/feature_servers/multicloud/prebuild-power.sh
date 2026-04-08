@@ -3,16 +3,15 @@ set -Eeuo pipefail
 trap 'echo "[prebuild-power] failed at line $LINENO"; exit 1' ERR
 shopt -s dotglob nullglob
 
-# Must match the Konflux base image (ubi9/python-*-minimal); wheel tags must match `pip` in Dockerfile.
+# Must match the Konflux base image Python version; wheel tags must match `pip` in Dockerfile.
 PYTHON_VERSION=3.12
 WORKDIR=$(pwd)
 CMAKE_VERSION=3.30.5
 CMAKE_REQUIRED_VERSION=3.30.5
 
-microdnf install -y make cmake ninja-build libomp-devel \
-               git gcc gcc-c++ tar patch unzip \
-               openssl openssl-devel zlib-devel libuuid-devel \
-               libcurl-devel && microdnf clean all
+dnf install -y make cmake ninja-build libomp-devel \
+               git openssl openssl-devel zlib-devel libuuid-devel \
+               libcurl-devel && dnf clean all
 
 export CC=gcc
 export CXX=g++
@@ -98,8 +97,8 @@ cd ../../..
 # Build Milvus-Lite  (Python package)
 #######################################################
 echo "Building milvus-lite..."
-microdnf install -y perl ncurses-devel wget openblas-devel cargo gcc gcc-c++ libstdc++-static which libaio \
-               libtool m4 autoconf automake zlib-devel libffi-devel scl-utils xz && microdnf clean all
+dnf install -y perl ncurses-devel wget openblas-devel cargo libstdc++-static which libaio \
+               libtool m4 autoconf automake libffi-devel scl-utils xz && dnf clean all
 
 python${PYTHON_VERSION} -m pip install conan==1.64.1 setuptools==70.0.0
 
@@ -107,4 +106,6 @@ git clone https://github.com/milvus-io/milvus-lite
 cd milvus-lite/python
 git checkout v2.4.12
 git submodule update --init --recursive
-python${PYTHON_VERSION} -m pip install -v .
+# --no-build-isolation: milvus-lite's setup.py shells out to `conan install`
+# which must find the conan binary + profile from the main environment.
+python${PYTHON_VERSION} -m pip install -v --no-build-isolation .
