@@ -23,7 +23,7 @@ export CXX=/opt/rh/gcc-toolset-13/root/usr/bin/g++
 : "${LINKFLAGS:=""}"
 
 # Installing Python build dependencies
-python${PYTHON_VERSION} -m pip install build wheel setuptools ninja pybind11 numpy setuptools_scm Cython==3.0.8
+python${PYTHON_VERSION} -m pip install 'meson>=1.2.0,<1.11' meson-python build wheel setuptools ninja pybind11 numpy setuptools_scm Cython==3.0.8
 
 # Directory to collect built wheels
 mkdir -p /wheelhouse
@@ -101,7 +101,7 @@ export CC=gcc
 export CXX=g++
 export CXXFLAGS="-std=c++17"
 
-python${PYTHON_VERSION} -m pip install conan==1.64.1 setuptools==70.0.0
+python${PYTHON_VERSION} -m pip install conan==1.64.1 setuptools
 
 git clone https://github.com/milvus-io/milvus-lite
 cd milvus-lite/python
