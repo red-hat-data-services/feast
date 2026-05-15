@@ -1,0 +1,45 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: selector-migration
+  namespace: system
+  labels:
+    app.kubernetes.io/name: feast-operator
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: feast-operator
+    spec:
+      serviceAccountName: controller-manager
+      restartPolicy: Never
+      containers:
+      - name: migrate
+        image: origin-cli:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          DEPLOY="feast-operator-controller-manager"
+          NS="$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)"
+
+          if ! oc get deployment "$DEPLOY" -n "$NS" > /dev/null 2>&1; then
+            echo "Deployment $DEPLOY not found, nothing to migrate."
+            exit 0
+          fi
+
+          HAS_LABEL=$(oc get deployment "$DEPLOY" -n "$NS" \
+            -o jsonpath='{.spec.selector.matchLabels.app\.kubernetes\.io/name}' 2>/dev/null)
+
+          if [ -z "$HAS_LABEL" ]; then
+            echo "Deployment $DEPLOY has old selector (missing app.kubernetes.io/name)."
+            echo "Deleting so it can be recreated with the correct selector..."
+            oc delete deployment "$DEPLOY" -n "$NS"
+            echo "Done. The operator will recreate the Deployment."
+          else
+            echo "Deployment selector is already correct, no migration needed."
+          fi
