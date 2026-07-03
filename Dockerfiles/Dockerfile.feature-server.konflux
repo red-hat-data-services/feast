@@ -8,8 +8,8 @@ COPY requirements.txt requirements.txt
 # Power (ppc64le) only: Install a known stable pyarrow version
 # to avoid compatibility issues with the version from requirements.
 RUN if [ "$(uname -m)" = "ppc64le" ]; then \
-        echo "Power architecture detected. Installing pinned pyarrow version..."; \
-        pip install pyarrow==22.0.0; \
+        echo "Power architecture detected. Installing pinned pyarrow and re2 version..."; \
+        pip install pyarrow==22.0.0 re2==20220401; \
     else \
         echo "Non-Power architecture detected; skipping Power-specific pyarrow installation."; \
     fi
@@ -31,7 +31,12 @@ COPY --from=builder /opt/app-root/lib /opt/app-root/lib
 COPY --from=builder /opt/app-root/lib64 /opt/app-root/lib64
 COPY --from=builder /opt/app-root/bin /opt/app-root/bin
 ENV PATH="/opt/app-root/bin:${PATH}" \
-    PYTHONPATH="/opt/app-root/lib64/python3.12/site-packages"
+    PYTHONPATH="/opt/app-root/lib64/python3.12/site-packages" \
+    LD_LIBRARY_PATH=/opt/app-root/lib64/python3.12/site-packages/re2/lib
+
+RUN echo "/opt/app-root/lib64/python3.12/site-packages/re2/lib" \
+    > /etc/ld.so.conf.d/re2.conf && \
+    ldconfig
 
 # modify permissions to support running with a random uid
 RUN chmod g+w $(python -c "import feast.ui as ui; print(ui.__path__)" | tr -d "[']")/build/projects-list.json
