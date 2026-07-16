@@ -167,7 +167,8 @@ var _ = Describe("FeatureStore Controller", func() {
 			Expect(resource.Status.ServiceHostnames.UI).To(BeEmpty())
 			Expect(resource.Status.ServiceHostnames.OnlineStore).To(Equal(feast.GetFeastServiceName(services.OnlineFeastType) + "." + resource.Namespace + ".svc.cluster.local:80"))
 			Expect(resource.Status.Applied.FeastProject).To(Equal(resource.Spec.FeastProject))
-			Expect(resource.Status.Applied.AuthzConfig).To(BeNil())
+			Expect(resource.Status.Applied.AuthzConfig).NotTo(BeNil())
+			Expect(resource.Status.Applied.AuthzConfig.KubernetesAuthz).NotTo(BeNil())
 			Expect(resource.Status.Applied.Services).NotTo(BeNil())
 			Expect(resource.Status.Applied.Services.OfflineStore).To(BeNil())
 			Expect(resource.Status.Applied.Services.Registry).To(BeNil())
@@ -575,7 +576,8 @@ var _ = Describe("FeatureStore Controller", func() {
 			Expect(resource.Status.FeastVersion).To(Equal(feastversion.FeastVersion))
 			Expect(resource.Status.ClientConfigMap).To(Equal(feast.GetFeastServiceName(services.ClientFeastType)))
 			Expect(resource.Status.Applied.FeastProject).To(Equal(resource.Spec.FeastProject))
-			Expect(resource.Status.Applied.AuthzConfig).To(BeNil())
+			Expect(resource.Status.Applied.AuthzConfig).NotTo(BeNil())
+			Expect(resource.Status.Applied.AuthzConfig.KubernetesAuthz).NotTo(BeNil())
 			Expect(resource.Status.Applied.Services).NotTo(BeNil())
 			Expect(resource.Status.Applied.Services.OfflineStore).NotTo(BeNil())
 			Expect(resource.Status.Applied.Services.OfflineStore.Persistence).NotTo(BeNil())
@@ -1808,7 +1810,7 @@ func getFeatureStoreYamlEnvVar(envs []corev1.EnvVar) *corev1.EnvVar {
 
 func noAuthzConfig() services.AuthzConfig {
 	return services.AuthzConfig{
-		Type: services.NoAuthAuthType,
+		Type: services.KubernetesAuthType,
 	}
 }
 
