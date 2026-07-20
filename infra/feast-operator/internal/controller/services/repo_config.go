@@ -85,7 +85,7 @@ func getServiceRepoConfig(
 	}
 
 	if appliedSpec.BatchEngine != nil {
-		err := setRepoConfigBatchEngine(appliedSpec.BatchEngine, configMapExtractionFunc, &repoConfig)
+		err := setRepoConfigBatchEngine(featureStore, appliedSpec.BatchEngine, configMapExtractionFunc, &repoConfig)
 		if err != nil {
 			return repoConfig, err
 		}
@@ -342,6 +342,7 @@ func setRepoConfigOffline(services *feastdevv1.FeatureStoreServices, secretExtra
 }
 
 func setRepoConfigBatchEngine(
+	featureStore *feastdevv1.FeatureStore,
 	batchEngineConfig *feastdevv1.BatchEngineConfig,
 	configMapExtractionFunc func(configMapRef string, configMapKey string) (map[string]interface{}, error),
 	repoConfig *RepoConfig) error {
@@ -362,6 +363,12 @@ func setRepoConfigBatchEngine(
 		return fmt.Errorf("batch engine config must contain 'type' field")
 	}
 	delete(config, "type")
+	// Inject service_account only for spark_application so baked feature_store.yaml
+	// matches the SA/RoleBinding created by reconcileBatchEngineRBAC.
+	// Other batch engines are left unchanged.
+	if engineType == "spark_application" {
+		config["service_account"] = resolveBatchDriverSAName(featureStore, config)
+	}
 	repoConfig.BatchEngine = &ComputeEngineConfig{
 		Type:       engineType,
 		Parameters: config,
@@ -464,6 +471,54 @@ func setRepoConfigOpenLineage(
 			return fmt.Errorf("key \"api_key\" in secret %q must be a string, got %T", ol.ApiKeySecretRef.Name, apiKey)
 		}
 		yamlCfg.ApiKey = &apiKeyStr
+	}
+
+	if ol.Consumer != nil {
+		consumerCfg := &OpenLineageConsumerYamlConfig{
+			Enabled:          ol.Consumer.Enabled,
+			StoreType:        ol.Consumer.StoreType,
+			NamespaceMapping: ol.Consumer.NamespaceMapping,
+		}
+
+		if ol.Consumer.ConnectionStringSecretRef != nil {
+			params, err := secretExtractionFunc("", ol.Consumer.ConnectionStringSecretRef.Name, "")
+			if err != nil {
+				return fmt.Errorf("failed to read consumer connection string from secret %s: %w",
+					ol.Consumer.ConnectionStringSecretRef.Name, err)
+			}
+			connStr, exists := params["connection_string"]
+			if !exists {
+				return fmt.Errorf("secret %q does not contain the required key \"connection_string\"",
+					ol.Consumer.ConnectionStringSecretRef.Name)
+			}
+			connStrStr, ok := connStr.(string)
+			if !ok {
+				return fmt.Errorf("key \"connection_string\" in secret %q must be a string, got %T",
+					ol.Consumer.ConnectionStringSecretRef.Name, connStr)
+			}
+			consumerCfg.ConnectionString = &connStrStr
+		}
+
+		if ol.Consumer.ApiKeySecretRef != nil {
+			params, err := secretExtractionFunc("", ol.Consumer.ApiKeySecretRef.Name, "")
+			if err != nil {
+				return fmt.Errorf("failed to read consumer API key from secret %s: %w",
+					ol.Consumer.ApiKeySecretRef.Name, err)
+			}
+			apiKey, exists := params["api_key"]
+			if !exists {
+				return fmt.Errorf("secret %q does not contain the required key \"api_key\"",
+					ol.Consumer.ApiKeySecretRef.Name)
+			}
+			apiKeyStr, ok := apiKey.(string)
+			if !ok {
+				return fmt.Errorf("key \"api_key\" in secret %q must be a string, got %T",
+					ol.Consumer.ApiKeySecretRef.Name, apiKey)
+			}
+			consumerCfg.ApiKey = &apiKeyStr
+		}
+
+		yamlCfg.Consumer = consumerCfg
 	}
 
 	repoConfig.OpenLineage = yamlCfg

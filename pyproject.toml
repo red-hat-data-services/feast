@@ -14,17 +14,16 @@ dynamic = [
     "version",
 ]
 dependencies = [
+    "attrs",
     "click>=7.0.0,<9.0.0",
     "colorama>=0.3.9,<1",
     "dill~=0.3.0",
     "protobuf>=4.24.0",
     "Jinja2>=2,<4",
-    "jsonschema",
     "mmh3",
     "numpy>=2.0.0,<3",
     "pandas>=1.4.3,<3",
-    "pyarrow>=21.0.0; extra != 'flink'",
-    "pyarrow>=16.1.0,<21.0.0; extra == 'flink'",
+    "pyarrow>=16.1.0",
     "pydantic>=2.10.6",
     "pygments>=2.12.0,<3",
     "PyYAML>=5.4.0,<7",
@@ -48,6 +47,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+aerospike = [
+    "aerospike>=19.0.0,<20.0.0",
+]
 aws = ["boto3>=1.38.27", "fsspec>=2024.1.0", "aiobotocore>=2"]
 azure = [
     "azure-storage-blob>=0.37.0",
@@ -56,7 +58,7 @@ azure = [
     "pyodbc>=4.0.30",
     "pymssql<2.3.3"
 ]
-cassandra = ["cassandra-driver>=3.24.0,<4"]
+cassandra = ["cassandra-driver>=3.26.0,<4"]
 clickhouse = ["clickhouse-connect>=0.7.19"]
 couchbase = ["couchbase==4.3.2", "couchbase-columnar==1.0.0"]
 delta = ["deltalake<1.0.0"]
@@ -64,7 +66,7 @@ docling = ["docling==2.27.0"]
 duckdb = ["ibis-framework[duckdb]>=10.0.0"]
 elasticsearch = ["elasticsearch>=8.13.0"]
 faiss = ["faiss-cpu>=1.7.0,<=1.10.0"]
-flink = ["apache-flink>=2.2.1,<3"]
+flink = ["apache-flink>=2.2.1,<3", "pyarrow<21.0.0"]
 gcp = [
     "google-api-core>=1.23.0,<3",
     "googleapis-common-protos>=1.52.0,<2",
@@ -95,8 +97,8 @@ image = [
     "scikit-learn>=1.0.0",
 ]
 milvus = [
-    "pymilvus>=2.5,<3",
-    "milvus-lite==2.4.12",
+    "pymilvus>=2.5",
+    "milvus-lite>=2.4.12",
     "feast[setuptools]"
 ]
 mongodb = [
@@ -109,6 +111,7 @@ mysql = ["pymysql", "types-PyMySQL"]
 openlineage = ["openlineage-python>=1.40.0"]
 opentelemetry = ["prometheus_client", "psutil"]
 spark = ["pyspark>=4.0.0"]
+iceberg = ["pyiceberg>=0.7.0"]
 trino = ["trino>=0.305.0,<0.400.0", "regex"]
 postgres = ["psycopg[binary,pool]>=3.2.5"]
 # psycopg[c] install requires a system with a C compiler, python dev headers, & postgresql client dev headers
@@ -130,6 +133,7 @@ redis = [
     "redis>=4.2.2,<8",
     "hiredis>=2.0.0,<4",
 ]
+scylladb = ["scylla-driver>=3.28.0,<4"]
 singlestore = ["singlestoredb<1.8.0"]
 snowflake = [
     "snowflake-connector-python[pandas]>=3.7,<5",
@@ -143,6 +147,7 @@ dbt = ["dbt-artifacts-parser"]
 test = [
     "pytest>=6.0.0,<8",
     "pytest-xdist>=3.8.0",
+    "pytest-cov>=5.0.0",
     "pytest-timeout==1.4.2",
     "pytest-lazy-fixture==0.6.3",
     "pytest-ordering~=0.6.0",
@@ -158,7 +163,7 @@ test = [
 ]
 
 ci = [
-    "feast[test, aws, azure, cassandra, clickhouse, couchbase, delta, docling, duckdb, elasticsearch, faiss, gcp, ge, go, grpcio, hazelcast, hbase, ibis, image, k8s, mcp, milvus, mlflow, mongodb, mssql, mysql, openlineage, opentelemetry, oracle, spark, trino, postgres, pytorch, qdrant, rag, ray, redis, singlestore, snowflake, sqlite_vec]",
+    "feast[test, aws, azure, cassandra, clickhouse, couchbase, delta, docling, duckdb, elasticsearch, faiss, gcp, ge, go, grpcio, hazelcast, hbase, ibis, iceberg, image, k8s, mcp, milvus, mlflow, mongodb, mssql, mysql, openlineage, opentelemetry, oracle, scylladb, spark, trino, postgres, pytorch, qdrant, rag, ray, redis, singlestore, snowflake, sqlite_vec]",
     "build",
     "virtualenv==20.23.0",
     "dbt-artifacts-parser",
@@ -335,3 +340,28 @@ test-ci = { cmd = "python -m pytest -n auto --dist loadgroup --integration sdk/p
 duckdb-tests = ["py310", "duckdb-tests"]
 ray-tests = ["py310", "ray-tests"]
 registration-tests = ["py310", "registration-tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["feast"]
+omit = [
+    "*/tests/*",
+    "*/protos/*",
+    "*_pb2.py",
+    "*_pb2_grpc.py",
+    "feast/embedded_go/*",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "pass$",
+]
+
+[tool.coverage.xml]
+output = "coverage.xml"

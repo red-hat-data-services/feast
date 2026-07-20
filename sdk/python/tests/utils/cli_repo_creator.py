@@ -19,6 +19,7 @@ overhead and avoids atexit-handler (Dask thread pool, PySpark JVM) hang risks
 that can push the cumulative test time past the pytest global timeout budget.
 """
 
+import os
 import random
 import string
 import subprocess
@@ -53,6 +54,15 @@ class CliRunner:
     modules from the feature repo, and it is hard to clean up that state otherwise.
     """
 
+    def _subprocess_env(self) -> dict[str, str]:
+        env = os.environ.copy()
+        parent_paths = [path for path in sys.path if path]
+        existing_pythonpath = env.get("PYTHONPATH")
+        if existing_pythonpath:
+            parent_paths.append(existing_pythonpath)
+        env["PYTHONPATH"] = os.pathsep.join(parent_paths)
+        return env
+
     def run(self, args: List[str], cwd: Path) -> subprocess.CompletedProcess:
         # Apply a conservative timeout to prevent CI hangs from Dask atexit-handler
         # stalls or other subprocess blockages.
@@ -64,6 +74,7 @@ class CliRunner:
                 cwd=cwd,
                 capture_output=True,
                 timeout=timeout,
+                env=self._subprocess_env(),
             )
         except subprocess.TimeoutExpired:
             return subprocess.CompletedProcess(
@@ -87,6 +98,7 @@ class CliRunner:
             cwd=cwd,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
+            env=self._subprocess_env(),
         )
         try:
             stdout, _ = proc.communicate(timeout=timeout)
@@ -130,15 +142,18 @@ class CliRunner:
             repo_path = Path(repo_dir_name)
             data_path = Path(data_dir_name)
 
+            registry_path_yaml = str(data_path / "registry.db")
+            online_store_path_yaml = str(data_path / "online_store.db")
+
             repo_config = repo_path / "feature_store.yaml"
             if online_store == "sqlite":
                 yaml_config = dedent(
                     f"""
                 project: {project_id}
-                registry: {data_path / "registry.db"}
+                registry: {registry_path_yaml}
                 provider: local
                 online_store:
-                    path: {data_path / "online_store.db"}
+                    path: {online_store_path_yaml}
                 offline_store:
                     type: {offline_store}
                 entity_key_serialization_version: 3
@@ -148,10 +163,10 @@ class CliRunner:
                 yaml_config = dedent(
                     f"""
                 project: {project_id}
-                registry: {data_path / "registry.db"}
+                registry: {registry_path_yaml}
                 provider: local
                 online_store:
-                    path: {data_path / "online_store.db"}
+                    path: {online_store_path_yaml}
                     type: milvus
                     vector_enabled: true
                     embedding_dim: 10
@@ -164,7 +179,7 @@ class CliRunner:
                 yaml_config = dedent(
                     f"""
                 project: {project_id}
-                registry: {data_path / "registry.db"}
+                registry: {registry_path_yaml}
                 provider: local
                 online_store:
                     type: {online_store}

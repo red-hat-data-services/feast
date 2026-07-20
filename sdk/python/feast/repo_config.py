@@ -51,6 +51,7 @@ BATCH_ENGINE_CLASS_FOR_TYPE = {
     "spark.engine": "feast.infra.compute_engines.spark.compute.SparkComputeEngine",
     "ray.engine": "feast.infra.compute_engines.ray.compute.RayComputeEngine",
     "flink.engine": "feast.infra.compute_engines.flink.compute.FlinkComputeEngine",
+    "spark_application": "feast.infra.compute_engines.spark_application.compute.SparkApplicationComputeEngine",
 }
 
 LEGACY_ONLINE_STORE_CLASS_FOR_TYPE = {
@@ -66,6 +67,7 @@ LEGACY_ONLINE_STORE_CLASS_FOR_TYPE = {
 }
 
 ONLINE_STORE_CLASS_FOR_TYPE = {
+    "aerospike": "feast.infra.online_stores.aerospike_online_store.AerospikeOnlineStore",
     "sqlite": "feast.infra.online_stores.sqlite.SqliteOnlineStore",
     "datastore": "feast.infra.online_stores.datastore.DatastoreOnlineStore",
     "redis": "feast.infra.online_stores.redis.RedisOnlineStore",
@@ -75,6 +77,7 @@ ONLINE_STORE_CLASS_FOR_TYPE = {
     "postgres": "feast.infra.online_stores.postgres_online_store.postgres.PostgreSQLOnlineStore",
     "hbase": "feast.infra.online_stores.hbase_online_store.hbase.HbaseOnlineStore",
     "cassandra": "feast.infra.online_stores.cassandra_online_store.cassandra_online_store.CassandraOnlineStore",
+    "scylladb": "feast.infra.online_stores.scylladb_online_store.scylladb.ScyllaDBOnlineStore",
     "mysql": "feast.infra.online_stores.mysql_online_store.mysql.MySQLOnlineStore",
     "hazelcast": "feast.infra.online_stores.hazelcast_online_store.hazelcast_online_store.HazelcastOnlineStore",
     "elasticsearch": "feast.infra.online_stores.elasticsearch_online_store.elasticsearch.ElasticSearchOnlineStore",
@@ -239,6 +242,25 @@ class DataQualityMonitoringConfig(FeastConfigBaseModel):
     """Whether baseline distribution is computed automatically on ``feast apply``."""
 
 
+class OpenLineageConsumerConfig(FeastBaseModel):
+    """Configuration for the OpenLineage consumer (event receiver)."""
+
+    enabled: StrictBool = False
+    """ bool: Whether the consumer is enabled. """
+
+    store_type: StrictStr = "sql"
+    """ str: Storage backend type. Currently only 'sql' is supported. """
+
+    connection_string: Optional[StrictStr] = None
+    """ str: Optional separate database connection string. """
+
+    api_key: Optional[StrictStr] = None
+    """ str: API key for authenticating producers sending events. """
+
+    namespace_mapping: Optional[Dict[str, str]] = None
+    """ dict: Map of OL namespace -> Feast project for RBAC scoping. """
+
+
 class OpenLineageConfig(FeastBaseModel):
     """Configuration for OpenLineage integration.
 
@@ -281,9 +303,25 @@ class OpenLineageConfig(FeastBaseModel):
     emit_on_materialize: StrictBool = True
     """ bool: Emit lineage events during materialization. """
 
+    consumer: Optional[OpenLineageConsumerConfig] = None
+    """ OpenLineageConsumerConfig: Consumer (event receiver) configuration. """
+
     def to_openlineage_config(self):
         """Convert to feast.openlineage.OpenLineageConfig."""
         from feast.openlineage.config import OpenLineageConfig as OLConfig
+        from feast.openlineage.config import (
+            OpenLineageConsumerConfig as OLConsumerConfig,
+        )
+
+        consumer = None
+        if self.consumer:
+            consumer = OLConsumerConfig(
+                enabled=self.consumer.enabled,
+                store_type=self.consumer.store_type,
+                connection_string=self.consumer.connection_string,
+                api_key=self.consumer.api_key,
+                namespace_mapping=self.consumer.namespace_mapping or {},
+            )
 
         return OLConfig(
             enabled=self.enabled,
@@ -295,6 +333,7 @@ class OpenLineageConfig(FeastBaseModel):
             producer=self.producer,
             emit_on_apply=self.emit_on_apply,
             emit_on_materialize=self.emit_on_materialize,
+            consumer=consumer or OLConsumerConfig(),
         )
 
 
