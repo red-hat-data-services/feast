@@ -1,7 +1,7 @@
 --index-url https://packages.redhat.com/api/pypi/public-rhai/rhoai/3.5/cpu-ubi9/simple/
 
-duckdb==1.5.3 \
-    --hash=sha256:1bf9c5699d62b4aef1f9635250762a68f8ed51e7d69c2f94800c2f2b9ae0f10e
+duckdb==1.5.4 \
+    --hash=sha256:013f9110028320a5e54cba377c339b8d0de071a2b6b62d948b83e1ed7e9e9cb0
 
 numpy==2.5.0 \
     --hash=sha256:c10e4909df3fe94310f92c05abdc161fcb138aad18bd1234d4893bbbe39e8bfc
