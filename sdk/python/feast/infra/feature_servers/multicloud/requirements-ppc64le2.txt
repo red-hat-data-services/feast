@@ -9,8 +9,8 @@ numpy==2.5.0 \
 httptools==0.8.0 \
     --hash=sha256:0d87c67fcf648e1b77acdd1eb0178be0a1252e3aeeec5985a9a7a87ae63dc05f
 
-grpcio==1.81.0 \
-    --hash=sha256:29a9464f0b2f53252958cc929c95641ea79ac4a0364a10d70ec20c0f86b85a26
+grpcio==1.81.1 \
+    --hash=sha256:1c16f597305ca91b1830e12292e4341dd5cd360c38c043eca7189666c7cfd03b
 
 snowflake-connector-python==4.6.0 \
     --hash=sha256:eeceee2769be282b2c5d50ca780dcf512dbdc50833071268c1050d7c7db79a26
