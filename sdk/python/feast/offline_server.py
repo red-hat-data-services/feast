@@ -37,7 +37,7 @@ def _configure_grpc_fips() -> bool:
 # On FIPS-enabled systems (notably IBM Power ppc64le), gRPC reads
 # GRPC_SSL_CIPHER_SUITES during shared-library initialization.  The env var
 # must be set before any gRPC-linked module (pyarrow.flight) is imported.
-_configure_grpc_fips()
+_fips_configured = _configure_grpc_fips()
 
 import click  # noqa: E402
 import pyarrow as pa  # noqa: E402
