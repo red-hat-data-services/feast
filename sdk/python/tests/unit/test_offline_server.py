@@ -1,4 +1,8 @@
+import importlib
 import os
+import subprocess
+import sys
+import textwrap
 import tempfile
 from datetime import datetime, timedelta
 
@@ -19,6 +23,12 @@ from feast.offline_server import OfflineServer, _init_auth_manager
 from feast.repo_config import RepoConfig
 from feast.torch_wrapper import get_torch
 from tests.utils.cli_repo_creator import CliRunner
+from feast.offline_server import (
+    OfflineServer,
+    _configure_grpc_fips,
+    _is_fips_enabled,
+)
+
 
 PROJECT_NAME = "test_remote_offline"
 
@@ -345,3 +355,30 @@ def _test_pull_all_from_table_or_query(temp_dir, fs: FeatureStore):
         start_date=start_date,
         end_date=end_date,
     ).to_df()
+
+def test_configure_grpc_fips_noop_without_fips():
+    with (
+        patch("feast.offline_server._is_fips_enabled", return_value=False),
+        patch.dict(os.environ, {}, clear=False),
+    ):
+        os.environ.pop("GRPC_SSL_CIPHER_SUITES", None)
+        _configure_grpc_fips()
+        assert "GRPC_SSL_CIPHER_SUITES" not in os.environ
+
+
+def test_module_level_fips_sets_env_before_pyarrow_import():
+    """GRPC_SSL_CIPHER_SUITES must be set at module load time,
+    before pyarrow.flight (which bundles gRPC) is imported."""
+    env_backup = os.environ.pop("GRPC_SSL_CIPHER_SUITES", None)
+    try:
+        with patch("builtins.open", mock_open(read_data="1\n")):
+            import feast.offline_server as mod
+
+            importlib.reload(mod)
+            assert "GRPC_SSL_CIPHER_SUITES" in os.environ
+            assert "AES128-GCM-SHA256" in os.environ["GRPC_SSL_CIPHER_SUITES"]
+    finally:
+        if env_backup is not None:
+            os.environ["GRPC_SSL_CIPHER_SUITES"] = env_backup
+        else:
+            os.environ.pop("GRPC_SSL_CIPHER_SUITES", None)
