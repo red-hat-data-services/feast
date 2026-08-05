@@ -199,10 +199,18 @@ rules:
   - rbac.authorization.k8s.io
   resources:
   - clusterrolebindings
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - update
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
   - clusterroles
   - rolebindings
   - roles
-  - subjectaccessreviews
   verbs:
   - create
   - delete
