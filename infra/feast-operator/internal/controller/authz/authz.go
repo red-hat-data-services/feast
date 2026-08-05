@@ -135,11 +135,6 @@ func (authz *FeastAuthorization) setFeastClusterRole(clusterRole *rbacv1.Cluster
 			Verbs:     []string{"create"},
 		},
 		{
-			APIGroups: []string{rbacv1.GroupName},
-			Resources: []string{"subjectaccessreviews"},
-			Verbs:     []string{"create"},
-		},
-		{
 			APIGroups: []string{""},
 			Resources: []string{"namespaces"},
 			Verbs:     []string{"get", "list", "watch"},
@@ -218,11 +213,6 @@ func (authz *FeastAuthorization) setFeastRole(role *rbacv1.Role) error {
 		{
 			APIGroups: []string{"authentication.k8s.io"},
 			Resources: []string{"tokenreviews"},
-			Verbs:     []string{"create"},
-		},
-		{
-			APIGroups: []string{rbacv1.GroupName},
-			Resources: []string{"subjectaccessreviews"},
 			Verbs:     []string{"create"},
 		},
 		{
