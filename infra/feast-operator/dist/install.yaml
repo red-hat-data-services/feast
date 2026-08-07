@@ -65,6 +65,11 @@ spec:
                           type: string
                         type: array
                     type: object
+                  noAuth:
+                    description: NoAuth explicitly disables authentication and authorization.
+                      When set to true, Feast services run without any auth checks.
+                      Use only for development or testing environments.
+                    type: boolean
                   oidc:
                     description: |-
                       OidcAuthz defines the authorization settings for deployments using an Open ID Connect identity provider.
@@ -89,8 +94,8 @@ spec:
                     type: object
                 type: object
                 x-kubernetes-validations:
-                - message: One selection required between kubernetes or oidc.
-                  rule: '[has(self.kubernetes), has(self.oidc)].exists_one(c, c)'
+                - message: One selection required between kubernetes, oidc, or noAuth.
+                  rule: '[has(self.kubernetes), has(self.oidc), has(self.noAuth)].exists_one(c, c)'
               cronJob:
                 description: FeastCronJob defines a CronJob to execute against a Feature
                   Store deployment.
@@ -4084,6 +4089,11 @@ spec:
                               type: string
                             type: array
                         type: object
+                      noAuth:
+                        description: NoAuth explicitly disables authentication and
+                          authorization. When set to true, Feast services run without
+                          any auth checks. Use only for development or testing environments.
+                        type: boolean
                       oidc:
                         description: |-
                           OidcAuthz defines the authorization settings for deployments using an Open ID Connect identity provider.
@@ -4108,8 +4118,8 @@ spec:
                         type: object
                     type: object
                     x-kubernetes-validations:
-                    - message: One selection required between kubernetes or oidc.
-                      rule: '[has(self.kubernetes), has(self.oidc)].exists_one(c,
+                    - message: One selection required between kubernetes, oidc, or noAuth.
+                      rule: '[has(self.kubernetes), has(self.oidc), has(self.noAuth)].exists_one(c,
                         c)'
                   cronJob:
                     description: FeastCronJob defines a CronJob to execute against
@@ -8266,6 +8276,11 @@ spec:
                           type: string
                         type: array
                     type: object
+                  noAuth:
+                    description: NoAuth explicitly disables authentication and authorization.
+                      When set to true, Feast services run without any auth checks.
+                      Use only for development or testing environments.
+                    type: boolean
                   oidc:
                     description: |-
                       OidcAuthz defines the authorization settings for deployments using an Open ID Connect identity provider.
@@ -8290,8 +8305,8 @@ spec:
                     type: object
                 type: object
                 x-kubernetes-validations:
-                - message: One selection required between kubernetes or oidc.
-                  rule: '[has(self.kubernetes), has(self.oidc)].exists_one(c, c)'
+                - message: One selection required between kubernetes, oidc, or noAuth.
+                  rule: '[has(self.kubernetes), has(self.oidc), has(self.noAuth)].exists_one(c, c)'
               cronJob:
                 description: FeastCronJob defines a CronJob to execute against a Feature
                   Store deployment.
@@ -12285,6 +12300,11 @@ spec:
                               type: string
                             type: array
                         type: object
+                      noAuth:
+                        description: NoAuth explicitly disables authentication and
+                          authorization. When set to true, Feast services run without
+                          any auth checks. Use only for development or testing environments.
+                        type: boolean
                       oidc:
                         description: |-
                           OidcAuthz defines the authorization settings for deployments using an Open ID Connect identity provider.
@@ -12309,8 +12329,8 @@ spec:
                         type: object
                     type: object
                     x-kubernetes-validations:
-                    - message: One selection required between kubernetes or oidc.
-                      rule: '[has(self.kubernetes), has(self.oidc)].exists_one(c,
+                    - message: One selection required between kubernetes, oidc, or noAuth.
+                      rule: '[has(self.kubernetes), has(self.oidc), has(self.noAuth)].exists_one(c,
                         c)'
                   cronJob:
                     description: FeastCronJob defines a CronJob to execute against

@@ -1,13 +1,13 @@
-FROM registry.access.redhat.com/ubi9/python-311@sha256:9d3578927c6168e364f963b642fb15d5c4b1224a31c11da2ae970f05708724ae
+# Stage 1: Build with full Python 311 image (includes compilers and dev tools)
+FROM registry.access.redhat.com/ubi9/python-311:1 AS builder
 
-# OS Packages needs to be installed as root
 USER 0
 
 # Upgrade base packages for consistency across all arches
 RUN dnf upgrade -y --refresh && dnf clean all
 
 # Copy Power prebuild script
-COPY prebuild-power.sh /prebuild-power.sh
+COPY sdk/python/feast/infra/feature_servers/multicloud/prebuild-power.sh /prebuild-power.sh
 RUN chmod +x /prebuild-power.sh
 
 # Run prebuild script conditionally (Power only)
@@ -19,11 +19,63 @@ RUN if [ "$(uname -m)" = "ppc64le" ]; then \
         echo "Non-Power architecture detected; skipping Power prebuild"; \
     fi
 
-COPY requirements.txt requirements.txt
-RUN pip install -r requirements.txt
+# Install locked dependencies (without feast itself)
+# On ppc64le the prebuild script already compiled pyarrow from source;
+# strip it from the locked list so pip doesn't try to rebuild a different version.
+COPY sdk/python/requirements/py3.11-minimal-requirements.txt /tmp/requirements.txt
+RUN if [ "$(uname -m)" = "ppc64le" ]; then \
+        grep -iv '^pyarrow' /tmp/requirements.txt > /tmp/requirements-filtered.txt && \
+        pip install --no-deps -r /tmp/requirements-filtered.txt; \
+    else \
+        pip install --no-deps -r /tmp/requirements.txt; \
+    fi
 
-# modify permissions to support running with a random uid
-RUN chmod g+w $(python -c "import feast.ui as ui; print(ui.__path__)" | tr -d "[']")/build/projects-list.json
+# Install feast from local source
+COPY sdk/python/feast/infra/feature_servers/multicloud/requirements.txt /tmp/feast-version.txt
+COPY setup.py pyproject.toml README.md /src/
+COPY sdk/python /src/sdk/python
+WORKDIR /src
+RUN SETUPTOOLS_SCM_PRETEND_VERSION=$(awk -F'==' 'NR==2{gsub(/[[:space:]]/,"",$2); print $2}' /tmp/feast-version.txt) \
+    pip install --no-deps '.[minimal]'
+
+# Stage 2: Runtime image
+# NOTE: ubi9/python-311-minimal does not exist in the Red Hat registry;
+# only python-312-minimal is published.  Use the full python-311 image.
+FROM registry.access.redhat.com/ubi9/python-311:1
+
+USER 0
+
+# Runtime shared libraries required by compiled Python extensions:
+#   libicu  - pyarrow (Arrow C++ depends on ICU)
+#   libpq   - psycopg[c] (PostgreSQL C adapter)
+RUN dnf install -y git libicu libpq python3.11-devel postgresql-devel gcc openblas-devel && dnf clean all
+
+# Copy installed Python packages and entry-point scripts from builder
+COPY --from=builder /opt/app-root/lib /opt/app-root/lib
+COPY --from=builder /opt/app-root/lib64 /opt/app-root/lib64
+COPY --from=builder /opt/app-root/bin /opt/app-root/bin
+ENV PATH="/opt/app-root/bin:${PATH}" \
+    PYTHONPATH="/opt/app-root/lib64/python3.11/site-packages"
+
+# When building from source, setuptools does not include non-Python data files
+# (static assets, UI build, templates, jinja2, sql) because there is no .git
+# dir for setuptools-scm to list tracked files.  Copy them from the source tree.
+#   static/              - feature server chat UI (importlib_resources)
+#   templates/           - feast init project scaffolding (Path / copytree)
+#   api/.../templates/   - REST registry Jinja2 codegen (FileSystemLoader)
+#   infra/utils/snowflake/ - SQL scripts for Snowflake registry & UDFs (open())
+COPY --from=builder /src/sdk/python/feast/static /opt/app-root/lib64/python3.11/site-packages/feast/static
+COPY --from=builder /src/sdk/python/feast/templates /opt/app-root/lib64/python3.11/site-packages/feast/templates
+COPY --from=builder /src/sdk/python/feast/api/registry/rest/templates /opt/app-root/lib64/python3.11/site-packages/feast/api/registry/rest/templates
+COPY --from=builder /src/sdk/python/feast/infra/utils/snowflake /opt/app-root/lib64/python3.11/site-packages/feast/infra/utils/snowflake
+
+# The PyPI wheel ships a pre-built React UI under feast/ui/build/; when
+# building from source that directory does not exist.  Create the minimal
+# structure the runtime needs (projects-list.json is overwritten at startup).
+RUN UI_DIR=$(python -c "import feast.ui as ui; print(ui.__path__)" | tr -d "[']") && \
+    mkdir -p "${UI_DIR}/build" && \
+    echo '{"projects":[]}' > "${UI_DIR}/build/projects-list.json" && \
+    chmod g+w "${UI_DIR}/build/projects-list.json"
 
 # default user
 USER 1001
@@ -35,4 +87,3 @@ LABEL com.redhat.component="odh-feature-server" \
       io.openshift.expose-services="" \
       io.k8s.display-name="odh-feature-server" \
       io.k8s.description="odh-feature-server"
-
