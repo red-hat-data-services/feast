@@ -25,6 +25,7 @@ _Appears in:_
 | Field | Description |
 | --- | --- |
 | `kubernetes` _[KubernetesAuthz](#kubernetesauthz)_ |  |
+| `noAuth` _boolean_ | NoAuth explicitly disables authentication and authorization. When set to true, Feast services run without any auth checks. Use only for development or testing environments. |
 | `oidc` _[OidcAuthz](#oidcauthz)_ |  |
 
 

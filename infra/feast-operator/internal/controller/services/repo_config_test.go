@@ -195,6 +195,16 @@ var _ = Describe("Repo Config", func() {
 			Expect(repoConfig.OnlineStore).To(Equal(defaultOnlineStoreConfig(featureStore)))
 			Expect(repoConfig.Registry).To(Equal(defaultRegistryConfig(featureStore)))
 
+			By("Having noAuth explicitly set")
+			featureStore = minimalFeatureStore()
+			featureStore.Spec.AuthzConfig = &feastdevv1.AuthzConfig{
+				NoAuth: boolPtr(true),
+			}
+			ApplyDefaultsToStatus(featureStore)
+			repoConfig, err = getServiceRepoConfig(featureStore, mockExtractConfigFromSecret)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(repoConfig.AuthzConfig.Type).To(Equal(NoAuthAuthType))
+
 			By("Having oidc authorization")
 			featureStore.Spec.AuthzConfig = &feastdevv1.AuthzConfig{
 				OidcAuthz: &feastdevv1.OidcAuthz{
