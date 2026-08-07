@@ -597,18 +597,19 @@ var _ = Describe("FeatureStore API", func() {
 			Expect(storage).To(Equal("500Mi"))
 		})
 	})
-	Context("When omitting the AuthzConfig PvcConfig", func() {
+	Context("When omitting the AuthzConfig", func() {
 		_, featurestore := initContext()
-		It("should keep an empty AuthzConfig", func() {
+		It("should default to KubernetesAuthz", func() {
 			resource := featurestore
 			services.ApplyDefaultsToStatus(resource)
-			Expect(resource.Status.Applied.AuthzConfig).To(BeNil())
+			Expect(resource.Status.Applied.AuthzConfig).NotTo(BeNil())
+			Expect(resource.Status.Applied.AuthzConfig.KubernetesAuthz).NotTo(BeNil())
 		})
 	})
 	Context("When configuring the AuthzConfig", func() {
 		ctx, featurestore := initContext()
 		It("should fail when both kubernetes and oidc settings are given", func() {
-			attemptInvalidCreationAndAsserts(ctx, authzConfigWithOidc(authzConfigWithKubernetes(featurestore)), "One selection required between kubernetes or oidc")
+			attemptInvalidCreationAndAsserts(ctx, authzConfigWithOidc(authzConfigWithKubernetes(featurestore)), "One selection required between kubernetes, oidc, or noAuth")
 		})
 	})
 
