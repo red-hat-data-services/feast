@@ -273,6 +273,17 @@ def _test_get_historical_features_returns_nan(fs: FeatureStore):
             value = training_df[column_id][index]
             assertpy.assert_that(value).is_nan()
 
+def test_configure_grpc_fips_sets_cipher_suites():
+    with (
+        patch("feast.offline_server._is_fips_enabled", return_value=True),
+        patch.dict(os.environ, {}, clear=False),
+    ):
+        os.environ.pop("GRPC_SSL_CIPHER_SUITES", None)
+        _configure_grpc_fips()
+        assert "GRPC_SSL_CIPHER_SUITES" in os.environ
+        assert "DHE-RSA-AES128-GCM-SHA256" in os.environ["GRPC_SSL_CIPHER_SUITES"]
+        del os.environ["GRPC_SSL_CIPHER_SUITES"]
+
 
 def _test_get_historical_features_to_tensor_with_nan(fs: FeatureStore):
     entity_df = pd.DataFrame.from_dict(
@@ -399,7 +410,7 @@ def test_module_level_fips_sets_env_before_pyarrow_import():
         try:
             import feast.offline_server
             assert "GRPC_SSL_CIPHER_SUITES" in os.environ
-            assert "AES128-GCM-SHA256" in os.environ["GRPC_SSL_CIPHER_SUITES"]
+            assert "DHE-RSA-AES128-GCM-SHA256" in os.environ["GRPC_SSL_CIPHER_SUITES"]
         finally:
             builtins.__import__ = original_import
             builtins.open = _real_open
