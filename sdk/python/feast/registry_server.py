@@ -1256,13 +1256,17 @@ class RegistryServer(RegistryServer_pb2_grpc.RegistryServerServicer):
     def ApplyValidationReference(
         self, request: RegistryServer_pb2.ApplyValidationReferenceRequest, context
     ):
-        validation_reference = cast(
-            ValidationReference,
-            assert_permissions_to_update(
-                resource=ValidationReference.from_proto(request.validation_reference),
-                getter=self.proxied_registry.get_validation_reference,
-                project=request.project,
-            ),
+        validation_ref_meta = ValidationReference.from_proto(
+            request.validation_reference, skip_udf=True
+        )
+        assert_permissions_to_update(
+            resource=validation_ref_meta,
+            getter=self.proxied_registry.get_validation_reference,
+            project=request.project,
+        )
+
+        validation_reference = ValidationReference.from_proto(
+            request.validation_reference
         )
         self.proxied_registry.apply_validation_reference(
             validation_reference=validation_reference,
@@ -1351,7 +1355,7 @@ class RegistryServer(RegistryServer_pb2_grpc.RegistryServerServicer):
         self, request: RegistryServer_pb2.ApplyMaterializationRequest, context
     ):
         assert_permissions(
-            resource=FeatureView.from_proto(request.feature_view),
+            resource=FeatureView.from_proto(request.feature_view, skip_udf=True),
             actions=[AuthzedAction.WRITE_ONLINE],
         )
 
