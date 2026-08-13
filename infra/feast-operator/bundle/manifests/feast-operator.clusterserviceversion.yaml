@@ -137,8 +137,15 @@ spec:
           - ""
           resources:
           - namespaces
+          verbs:
+          - get
+          - list
+          - update
+          - watch
+        - apiGroups:
+          - ""
+          resources:
           - pods
-          - secrets
           verbs:
           - get
           - list
@@ -146,9 +153,9 @@ spec:
         - apiGroups:
           - ""
           resources:
-          - pods/exec
+          - secrets
           verbs:
-          - create
+          - get
         - apiGroups:
           - feast.dev
           resources:
@@ -202,10 +209,34 @@ spec:
           - rbac.authorization.k8s.io
           resources:
           - clusterrolebindings
+          verbs:
+          - create
+          - delete
+          - get
+          - update
+        - apiGroups:
+          - rbac.authorization.k8s.io
+          resources:
           - clusterroles
+          verbs:
+          - create
+        - apiGroups:
+          - rbac.authorization.k8s.io
+          resourceNames:
+          - feast-discover-namespaces
+          - feast-oidc-token-review
+          - feast-token-review-cluster-role
+          resources:
+          - clusterroles
+          verbs:
+          - delete
+          - get
+          - update
+        - apiGroups:
+          - rbac.authorization.k8s.io
+          resources:
           - rolebindings
           - roles
-          - subjectaccessreviews
           verbs:
           - create
           - delete
