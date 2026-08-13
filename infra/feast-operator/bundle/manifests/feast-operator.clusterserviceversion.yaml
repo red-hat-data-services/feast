@@ -219,6 +219,7 @@ spec:
           - create
           - delete
           - get
+          - list
           - update
         - apiGroups:
           - rbac.authorization.k8s.io
