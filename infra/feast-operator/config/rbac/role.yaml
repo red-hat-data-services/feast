@@ -24,7 +24,6 @@ rules:
   verbs:
   - get
   - list
-  - patch
   - update
   - watch
 - apiGroups:
@@ -54,12 +53,6 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - pods/exec
-  verbs:
-  - create
-- apiGroups:
-  - ""
-  resources:
   - pods/log
   verbs:
   - get
@@ -69,8 +62,6 @@ rules:
   - secrets
   verbs:
   - get
-  - list
-  - watch
 - apiGroups:
   - ""
   resources:
@@ -199,10 +190,34 @@ rules:
   - rbac.authorization.k8s.io
   resources:
   - clusterrolebindings
+  verbs:
+  - create
+  - delete
+  - get
+  - update
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
   - clusterroles
+  verbs:
+  - create
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resourceNames:
+  - feast-discover-namespaces
+  - feast-oidc-token-review
+  - feast-token-review-cluster-role
+  resources:
+  - clusterroles
+  verbs:
+  - delete
+  - get
+  - update
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
   - rolebindings
   - roles
-  - subjectaccessreviews
   verbs:
   - create
   - delete
