@@ -759,7 +759,7 @@ var defaultOfflineStoreConfig = OfflineStoreConfig{
 }
 
 var defaultAuthzConfig = AuthzConfig{
-	Type: NoAuthAuthType,
+	Type: KubernetesAuthType,
 }
 
 // getCertificatePath returns the appropriate certificate path based on whether a custom CA bundle is available
