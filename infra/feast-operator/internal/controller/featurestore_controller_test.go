@@ -183,7 +183,10 @@ var _ = Describe("FeatureStore Controller", func() {
 			Expect(cond.Type).To(Equal(feastdevv1.ReadyType))
 			Expect(cond.Message).To(Equal(feastdevv1.ReadyMessage))
 			cond = apimeta.FindStatusCondition(resource.Status.Conditions, feastdevv1.AuthorizationReadyType)
-			Expect(cond).To(BeNil())
+			Expect(cond).ToNot(BeNil())
+			Expect(cond.Status).To(Equal(metav1.ConditionTrue))
+			Expect(cond.Type).To(Equal(feastdevv1.AuthorizationReadyType))
+			Expect(cond.Message).To(Equal(feastdevv1.KubernetesAuthzReadyMessage))
 
 			cond = apimeta.FindStatusCondition(resource.Status.Conditions, feastdevv1.OnlineStoreReadyType)
 			Expect(cond).ToNot(BeNil())
@@ -474,7 +477,7 @@ var _ = Describe("FeatureStore Controller", func() {
 
 			err = k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(resource.Status.Conditions).To(HaveLen(4))
+			Expect(resource.Status.Conditions).To(HaveLen(5))
 
 			cond := apimeta.FindStatusCondition(resource.Status.Conditions, feastdevv1.ReadyType)
 			Expect(cond).ToNot(BeNil())
@@ -484,7 +487,9 @@ var _ = Describe("FeatureStore Controller", func() {
 			Expect(cond.Message).To(Equal("Error: Object " + resource.Namespace + "/" + deploy.Name + " is already owned by another Service controller " + name))
 
 			cond = apimeta.FindStatusCondition(resource.Status.Conditions, feastdevv1.AuthorizationReadyType)
-			Expect(cond).To(BeNil())
+			Expect(cond).ToNot(BeNil())
+			Expect(cond.Status).To(Equal(metav1.ConditionTrue))
+			Expect(cond.Message).To(Equal(feastdevv1.KubernetesAuthzReadyMessage))
 
 			cond = apimeta.FindStatusCondition(resource.Status.Conditions, feastdevv1.OnlineStoreReadyType)
 			Expect(cond).ToNot(BeNil())
@@ -621,7 +626,10 @@ var _ = Describe("FeatureStore Controller", func() {
 			Expect(cond.Message).To(Equal(feastdevv1.DeploymentNotAvailableMessage))
 
 			cond = apimeta.FindStatusCondition(resource.Status.Conditions, feastdevv1.AuthorizationReadyType)
-			Expect(cond).To(BeNil())
+			Expect(cond).ToNot(BeNil())
+			Expect(cond.Status).To(Equal(metav1.ConditionTrue))
+			Expect(cond.Type).To(Equal(feastdevv1.AuthorizationReadyType))
+			Expect(cond.Message).To(Equal(feastdevv1.KubernetesAuthzReadyMessage))
 
 			cond = apimeta.FindStatusCondition(resource.Status.Conditions, feastdevv1.RegistryReadyType)
 			Expect(cond).ToNot(BeNil())
@@ -1088,7 +1096,6 @@ var _ = Describe("FeatureStore Controller", func() {
 			err = k8sClient.Get(ctx, nsName, resource)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(resource.Status.Applied.Services.Registry.Remote.FeastRef.Namespace).NotTo(BeEmpty())
-			Expect(apimeta.FindStatusCondition(resource.Status.Conditions, feastdevv1.AuthorizationReadyType)).To(BeNil())
 			Expect(apimeta.FindStatusCondition(resource.Status.Conditions, feastdevv1.RegistryReadyType)).To(BeNil())
 			Expect(apimeta.IsStatusConditionTrue(resource.Status.Conditions, feastdevv1.ReadyType)).To(BeFalse())
 			cond := apimeta.FindStatusCondition(resource.Status.Conditions, feastdevv1.ReadyType)
@@ -1104,7 +1111,6 @@ var _ = Describe("FeatureStore Controller", func() {
 			Expect(err).To(HaveOccurred())
 			err = k8sClient.Get(ctx, nsName, resource)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(apimeta.FindStatusCondition(resource.Status.Conditions, feastdevv1.AuthorizationReadyType)).To(BeNil())
 			Expect(apimeta.FindStatusCondition(resource.Status.Conditions, feastdevv1.RegistryReadyType)).To(BeNil())
 			Expect(apimeta.IsStatusConditionTrue(resource.Status.Conditions, feastdevv1.ReadyType)).To(BeFalse())
 			cond = apimeta.FindStatusCondition(resource.Status.Conditions, feastdevv1.ReadyType)
@@ -1122,7 +1128,7 @@ var _ = Describe("FeatureStore Controller", func() {
 			err = k8sClient.Get(ctx, nsName, resource)
 			Expect(err).NotTo(HaveOccurred())
 
-			Expect(apimeta.FindStatusCondition(resource.Status.Conditions, feastdevv1.AuthorizationReadyType)).To(BeNil())
+			Expect(apimeta.IsStatusConditionTrue(resource.Status.Conditions, feastdevv1.AuthorizationReadyType)).To(BeTrue())
 			Expect(apimeta.FindStatusCondition(resource.Status.Conditions, feastdevv1.RegistryReadyType)).To(BeNil())
 			Expect(apimeta.IsStatusConditionTrue(resource.Status.Conditions, feastdevv1.OnlineStoreReadyType)).To(BeTrue())
 			Expect(apimeta.IsStatusConditionTrue(resource.Status.Conditions, feastdevv1.OfflineStoreReadyType)).To(BeTrue())
@@ -1223,7 +1229,7 @@ var _ = Describe("FeatureStore Controller", func() {
 			err = k8sClient.Get(ctx, nsName, resource)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(resource.Status.ServiceHostnames.Registry).To(BeEmpty())
-			Expect(apimeta.FindStatusCondition(resource.Status.Conditions, feastdevv1.AuthorizationReadyType)).To(BeNil())
+			Expect(apimeta.IsStatusConditionTrue(resource.Status.Conditions, feastdevv1.AuthorizationReadyType)).To(BeTrue())
 			Expect(apimeta.FindStatusCondition(resource.Status.Conditions, feastdevv1.RegistryReadyType)).To(BeNil())
 			Expect(apimeta.IsStatusConditionTrue(resource.Status.Conditions, feastdevv1.ReadyType)).To(BeFalse())
 			Expect(apimeta.IsStatusConditionTrue(resource.Status.Conditions, feastdevv1.OnlineStoreReadyType)).To(BeTrue())
@@ -1653,7 +1659,7 @@ var _ = Describe("FeatureStore Controller", func() {
 
 			err = k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(resource.Status.Conditions).To(HaveLen(7))
+			Expect(resource.Status.Conditions).To(HaveLen(8))
 
 			cond := apimeta.FindStatusCondition(resource.Status.Conditions, feastdevv1.ReadyType)
 			Expect(cond).ToNot(BeNil())
@@ -1663,7 +1669,9 @@ var _ = Describe("FeatureStore Controller", func() {
 			Expect(cond.Message).To(Equal("Error: Object " + resource.Namespace + "/" + deploy.Name + " is already owned by another Service controller " + name))
 
 			cond = apimeta.FindStatusCondition(resource.Status.Conditions, feastdevv1.AuthorizationReadyType)
-			Expect(cond).To(BeNil())
+			Expect(cond).ToNot(BeNil())
+			Expect(cond.Status).To(Equal(metav1.ConditionTrue))
+			Expect(cond.Message).To(Equal(feastdevv1.KubernetesAuthzReadyMessage))
 
 			cond = apimeta.FindStatusCondition(resource.Status.Conditions, feastdevv1.RegistryReadyType)
 			Expect(cond).ToNot(BeNil())
