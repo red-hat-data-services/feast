@@ -28,14 +28,19 @@ USER 0
 # Runtime shared libraries required by compiled Python extensions:
 #   libicu  - pyarrow (Arrow C++ depends on ICU)
 #   libpq   - psycopg[c] (PostgreSQL C adapter)
-RUN microdnf install -y git libicu libpq && microdnf clean all
+RUN microdnf install -y git libicu libpq python3.12-devel postgresql-devel gcc openblas-devel && microdnf clean all
 
 # Copy installed Python packages and entry-point scripts from builder
 COPY --from=builder /opt/app-root/lib /opt/app-root/lib
 COPY --from=builder /opt/app-root/lib64 /opt/app-root/lib64
 COPY --from=builder /opt/app-root/bin /opt/app-root/bin
 ENV PATH="/opt/app-root/bin:${PATH}" \
-    PYTHONPATH="/opt/app-root/lib64/python3.12/site-packages"
+    PYTHONPATH="/opt/app-root/lib64/python3.12/site-packages" \
+    LD_LIBRARY_PATH=/opt/app-root/lib64/python3.12/site-packages/re2/lib
+
+RUN echo "/opt/app-root/lib64/python3.12/site-packages/re2/lib" \
+    > /etc/ld.so.conf.d/re2.conf && \
+    ldconfig
 
 # When building from source, setuptools does not include non-Python data files
 # (static assets, UI build, templates, jinja2, sql) because there is no .git
