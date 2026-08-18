@@ -10,6 +10,7 @@ import (
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -101,16 +102,17 @@ func (authz *FeastAuthorization) createFeastRole() error {
 
 func (authz *FeastAuthorization) createFeastClusterRole() error {
 	logger := log.FromContext(authz.Handler.Context)
-	clusterRole := authz.initFeastClusterRole()
-	if op, err := controllerutil.CreateOrUpdate(authz.Handler.Context, authz.Handler.Client, clusterRole, controllerutil.MutateFn(func() error {
-		return authz.setFeastClusterRole(clusterRole)
-	})); err != nil {
-		return err
-	} else if op == controllerutil.OperationResultCreated || op == controllerutil.OperationResultUpdated {
-		logger.Info("Successfully reconciled", "ClusterRole", clusterRole.Name, "operation", op)
-	}
-
-	return nil
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		clusterRole := authz.initFeastClusterRole()
+		if op, err := controllerutil.CreateOrUpdate(authz.Handler.Context, authz.Handler.Client, clusterRole, controllerutil.MutateFn(func() error {
+			return authz.setFeastClusterRole(clusterRole)
+		})); err != nil {
+			return err
+		} else if op == controllerutil.OperationResultCreated || op == controllerutil.OperationResultUpdated {
+			logger.Info("Successfully reconciled", "ClusterRole", clusterRole.Name, "operation", op)
+		}
+		return nil
+	})
 }
 
 func (authz *FeastAuthorization) initFeastClusterRole() *rbacv1.ClusterRole {
@@ -122,7 +124,7 @@ func (authz *FeastAuthorization) initFeastClusterRole() *rbacv1.ClusterRole {
 }
 
 func (authz *FeastAuthorization) setFeastClusterRole(clusterRole *rbacv1.ClusterRole) error {
-	clusterRole.Labels = authz.getLabels()
+	clusterRole.Labels = authz.getSharedClusterRoleLabels()
 	clusterRole.Rules = []rbacv1.PolicyRule{
 		{
 			APIGroups: []string{rbacv1.GroupName},
@@ -182,16 +184,17 @@ func (authz *FeastAuthorization) setFeastClusterRoleBinding(clusterRoleBinding *
 // Create ClusterRoleBinding
 func (authz *FeastAuthorization) createFeastClusterRoleBinding() error {
 	logger := log.FromContext(authz.Handler.Context)
-	clusterRoleBinding := authz.initFeastClusterRoleBinding()
-	if op, err := controllerutil.CreateOrUpdate(authz.Handler.Context, authz.Handler.Client, clusterRoleBinding, controllerutil.MutateFn(func() error {
-		return authz.setFeastClusterRoleBinding(clusterRoleBinding)
-	})); err != nil {
-		return err
-	} else if op == controllerutil.OperationResultCreated || op == controllerutil.OperationResultUpdated {
-		logger.Info("Successfully reconciled", "ClusterRoleBinding", clusterRoleBinding.Name, "operation", op)
-	}
-
-	return nil
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		clusterRoleBinding := authz.initFeastClusterRoleBinding()
+		if op, err := controllerutil.CreateOrUpdate(authz.Handler.Context, authz.Handler.Client, clusterRoleBinding, controllerutil.MutateFn(func() error {
+			return authz.setFeastClusterRoleBinding(clusterRoleBinding)
+		})); err != nil {
+			return err
+		} else if op == controllerutil.OperationResultCreated || op == controllerutil.OperationResultUpdated {
+			logger.Info("Successfully reconciled", "ClusterRoleBinding", clusterRoleBinding.Name, "operation", op)
+		}
+		return nil
+	})
 }
 
 func (authz *FeastAuthorization) initFeastRole() *rbacv1.Role {
@@ -305,6 +308,12 @@ func (authz *FeastAuthorization) setAuthRole(role *rbacv1.Role) error {
 func (authz *FeastAuthorization) getLabels() map[string]string {
 	return map[string]string{
 		services.NameLabelKey:        authz.Handler.FeatureStore.Name,
+		services.ServiceTypeLabelKey: string(services.AuthzFeastType),
+	}
+}
+
+func (authz *FeastAuthorization) getSharedClusterRoleLabels() map[string]string {
+	return map[string]string{
 		services.ServiceTypeLabelKey: string(services.AuthzFeastType),
 	}
 }
