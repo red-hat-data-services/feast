@@ -19,6 +19,9 @@ RUN if [ "$(uname -m)" = "ppc64le" ]; then \
         echo "Non-Power architecture detected; skipping Power prebuild"; \
     fi
 
+# CVE-2026-8643: path traversal via malicious entry point name in pip wheel installation
+RUN pip install --upgrade "pip>=26.1.2"
+
 COPY requirements.txt requirements.txt
 RUN pip install -r requirements.txt
 

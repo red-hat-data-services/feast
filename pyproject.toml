@@ -169,6 +169,7 @@ ci = [
     "python-keycloak==4.2.2",
     "pre-commit<3.3.2",
     "assertpy==1.1",
+    "pip>=26.1.2",
     "pip-tools",
     "pybindgen==0.22.0",
     "types-protobuf~=3.19.22",

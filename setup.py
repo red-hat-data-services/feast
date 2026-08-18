@@ -228,6 +228,7 @@ CI_REQUIRED = (
         "python-keycloak==4.2.2",
         "pre-commit<3.3.2",
         "assertpy==1.1",
+        "pip>=26.1.2",
         "pip-tools",
         "pybindgen",
         "types-protobuf~=3.19.22",
