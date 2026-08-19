@@ -7,6 +7,7 @@ import (
 	feastdevv1 "github.com/feast-dev/feast/infra/feast-operator/api/v1"
 	"github.com/feast-dev/feast/infra/feast-operator/internal/controller/services"
 	rbacv1 "k8s.io/api/rbac/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -102,14 +103,19 @@ func (authz *FeastAuthorization) createFeastRole() error {
 func (authz *FeastAuthorization) createFeastClusterRole() error {
 	logger := log.FromContext(authz.Handler.Context)
 	clusterRole := authz.initFeastClusterRole()
-	if op, err := controllerutil.CreateOrUpdate(authz.Handler.Context, authz.Handler.Client, clusterRole, controllerutil.MutateFn(func() error {
+	op, err := controllerutil.CreateOrUpdate(authz.Handler.Context, authz.Handler.Client, clusterRole, controllerutil.MutateFn(func() error {
 		return authz.setFeastClusterRole(clusterRole)
-	})); err != nil {
+	}))
+	if apierrors.IsAlreadyExists(err) || apierrors.IsConflict(err) {
+		logger.Info("ClusterRole conflict or already exists, will reconcile on next cycle", "ClusterRole", clusterRole.Name, "error", err)
+		return nil
+	}
+	if err != nil {
 		return err
-	} else if op == controllerutil.OperationResultCreated || op == controllerutil.OperationResultUpdated {
+	}
+	if op == controllerutil.OperationResultCreated || op == controllerutil.OperationResultUpdated {
 		logger.Info("Successfully reconciled", "ClusterRole", clusterRole.Name, "operation", op)
 	}
-
 	return nil
 }
 
@@ -122,7 +128,7 @@ func (authz *FeastAuthorization) initFeastClusterRole() *rbacv1.ClusterRole {
 }
 
 func (authz *FeastAuthorization) setFeastClusterRole(clusterRole *rbacv1.ClusterRole) error {
-	clusterRole.Labels = authz.getLabels()
+	clusterRole.Labels = authz.getSharedClusterRoleLabels()
 	clusterRole.Rules = []rbacv1.PolicyRule{
 		{
 			APIGroups: []string{rbacv1.GroupName},
@@ -132,11 +138,6 @@ func (authz *FeastAuthorization) setFeastClusterRole(clusterRole *rbacv1.Cluster
 		{
 			APIGroups: []string{"authentication.k8s.io"},
 			Resources: []string{"tokenreviews"},
-			Verbs:     []string{"create"},
-		},
-		{
-			APIGroups: []string{rbacv1.GroupName},
-			Resources: []string{"subjectaccessreviews"},
 			Verbs:     []string{"create"},
 		},
 		{
@@ -188,14 +189,19 @@ func (authz *FeastAuthorization) setFeastClusterRoleBinding(clusterRoleBinding *
 func (authz *FeastAuthorization) createFeastClusterRoleBinding() error {
 	logger := log.FromContext(authz.Handler.Context)
 	clusterRoleBinding := authz.initFeastClusterRoleBinding()
-	if op, err := controllerutil.CreateOrUpdate(authz.Handler.Context, authz.Handler.Client, clusterRoleBinding, controllerutil.MutateFn(func() error {
+	op, err := controllerutil.CreateOrUpdate(authz.Handler.Context, authz.Handler.Client, clusterRoleBinding, controllerutil.MutateFn(func() error {
 		return authz.setFeastClusterRoleBinding(clusterRoleBinding)
-	})); err != nil {
+	}))
+	if apierrors.IsAlreadyExists(err) || apierrors.IsConflict(err) {
+		logger.Info("ClusterRoleBinding conflict or already exists, will reconcile on next cycle", "ClusterRoleBinding", clusterRoleBinding.Name, "error", err)
+		return nil
+	}
+	if err != nil {
 		return err
-	} else if op == controllerutil.OperationResultCreated || op == controllerutil.OperationResultUpdated {
+	}
+	if op == controllerutil.OperationResultCreated || op == controllerutil.OperationResultUpdated {
 		logger.Info("Successfully reconciled", "ClusterRoleBinding", clusterRoleBinding.Name, "operation", op)
 	}
-
 	return nil
 }
 
@@ -218,11 +224,6 @@ func (authz *FeastAuthorization) setFeastRole(role *rbacv1.Role) error {
 		{
 			APIGroups: []string{"authentication.k8s.io"},
 			Resources: []string{"tokenreviews"},
-			Verbs:     []string{"create"},
-		},
-		{
-			APIGroups: []string{rbacv1.GroupName},
-			Resources: []string{"subjectaccessreviews"},
 			Verbs:     []string{"create"},
 		},
 		{
@@ -315,6 +316,12 @@ func (authz *FeastAuthorization) setAuthRole(role *rbacv1.Role) error {
 func (authz *FeastAuthorization) getLabels() map[string]string {
 	return map[string]string{
 		services.NameLabelKey:        authz.Handler.FeatureStore.Name,
+		services.ServiceTypeLabelKey: string(services.AuthzFeastType),
+	}
+}
+
+func (authz *FeastAuthorization) getSharedClusterRoleLabels() map[string]string {
+	return map[string]string{
 		services.ServiceTypeLabelKey: string(services.AuthzFeastType),
 	}
 }
