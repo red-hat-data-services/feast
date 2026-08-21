@@ -244,7 +244,7 @@ class ValidationReference:
     dataset_name: str
     description: str
     tags: Dict[str, str]
-    profiler: Profiler
+    profiler: Optional[Profiler]
 
     _profile: Optional[Profile] = None
     _dataset: Optional[SavedDataset] = None
@@ -253,7 +253,7 @@ class ValidationReference:
         self,
         name: str,
         dataset_name: str,
-        profiler: Profiler,
+        profiler: Optional[Profiler] = None,
         description: str = "",
         tags: Optional[Dict[str, str]] = None,
     ):
@@ -299,28 +299,38 @@ class ValidationReference:
                     "to get validation reference object."
                 )
 
+            if not self.profiler:
+                raise RuntimeError(
+                    "Failed to calculate profile: profiler is not set on this ValidationReference."
+                )
             self._profile = self.profiler.analyze_dataset(self._dataset.to_df())
         return self._profile
 
     @classmethod
-    def from_proto(cls, proto: ValidationReferenceProto) -> "ValidationReference":
-        profiler_attr = proto.WhichOneof("profiler")
-        if profiler_attr == "ge_profiler":
-            from feast.dqm.profilers.ge_profiler import GEProfiler
+    def from_proto(
+        cls, proto: ValidationReferenceProto, skip_udf: bool = False
+    ) -> "ValidationReference":
+        profiler: Optional[Profiler] = None
+        profile: Optional[Profile] = None
 
-            profiler = GEProfiler.from_proto(proto.ge_profiler)
-        else:
-            raise RuntimeError("Unrecognized profiler")
+        if not skip_udf:
+            profiler_attr = proto.WhichOneof("profiler")
+            if profiler_attr == "ge_profiler":
+                from feast.dqm.profilers.ge_profiler import GEProfiler
 
-        profile_attr = proto.WhichOneof("cached_profile")
-        if profile_attr == "ge_profile":
-            from feast.dqm.profilers.ge_profiler import GEProfile
+                profiler = GEProfiler.from_proto(proto.ge_profiler)
+            else:
+                raise RuntimeError("Unrecognized profiler")
 
-            profile = GEProfile.from_proto(proto.ge_profile)
-        elif not profile_attr:
-            profile = None
-        else:
-            raise RuntimeError("Unrecognized profile")
+            profile_attr = proto.WhichOneof("cached_profile")
+            if profile_attr == "ge_profile":
+                from feast.dqm.profilers.ge_profiler import GEProfile
+
+                profile = GEProfile.from_proto(proto.ge_profile)
+            elif not profile_attr:
+                profile = None
+            else:
+                raise RuntimeError("Unrecognized profile")
 
         ref = ValidationReference(
             name=proto.name,
