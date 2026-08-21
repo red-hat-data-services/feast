@@ -122,6 +122,38 @@ var _ = Describe("FeatureStore Controller - Feast CronJob", func() {
 			startingDeadlineSeconds := int64(5)
 			Expect(cronJob.Spec.StartingDeadlineSeconds).To(Equal(&startingDeadlineSeconds))
 
+			cronJobSAName := services.GetFeastServiceName(resource, services.CronJobFeastType)
+			deploySAName := objMeta.Name
+			Expect(cronJob.Spec.JobTemplate.Spec.Template.Spec.ServiceAccountName).To(Equal(cronJobSAName))
+			Expect(cronJobSAName).NotTo(Equal(deploySAName))
+
+			cronJobSA := &corev1.ServiceAccount{}
+			err = k8sClient.Get(ctx, types.NamespacedName{
+				Name:      cronJobSAName,
+				Namespace: objMeta.Namespace,
+			}, cronJobSA)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(controllerutil.HasControllerReference(cronJobSA)).To(BeTrue())
+
+			podSecCtx := cronJob.Spec.JobTemplate.Spec.Template.Spec.SecurityContext
+			Expect(podSecCtx).NotTo(BeNil())
+			Expect(*podSecCtx.RunAsNonRoot).To(BeTrue())
+			Expect(podSecCtx.SeccompProfile).NotTo(BeNil())
+			Expect(podSecCtx.SeccompProfile.Type).To(Equal(corev1.SeccompProfileTypeRuntimeDefault))
+
+			for _, c := range cronJob.Spec.JobTemplate.Spec.Template.Spec.Containers {
+				Expect(c.SecurityContext).NotTo(BeNil())
+				Expect(*c.SecurityContext.AllowPrivilegeEscalation).To(BeFalse())
+				Expect(c.SecurityContext.Capabilities).NotTo(BeNil())
+				Expect(c.SecurityContext.Capabilities.Drop).To(ContainElement(corev1.Capability("ALL")))
+			}
+			for _, c := range cronJob.Spec.JobTemplate.Spec.Template.Spec.InitContainers {
+				Expect(c.SecurityContext).NotTo(BeNil())
+				Expect(*c.SecurityContext.AllowPrivilegeEscalation).To(BeFalse())
+				Expect(c.SecurityContext.Capabilities).NotTo(BeNil())
+				Expect(c.SecurityContext.Capabilities.Drop).To(ContainElement(corev1.Capability("ALL")))
+			}
+
 			checkCronJob(resource.Status.Applied.CronJob, cronJob.Spec)
 		})
 
@@ -241,6 +273,11 @@ var _ = Describe("FeatureStore Controller - Feast CronJob", func() {
 			Expect(cronJob.Spec.Schedule).To(Equal(schedule))
 			Expect(cronJob.Spec.StartingDeadlineSeconds).To(Equal(&startingDeadlineSeconds))
 			Expect(cronJob.Spec.JobTemplate.Spec.Parallelism).To(Equal(&int32Var))
+
+			cronJobSAName := services.GetFeastServiceName(resource, services.CronJobFeastType)
+			deploySAName := feast.GetObjectMeta().Name
+			Expect(cronJob.Spec.JobTemplate.Spec.Template.Spec.ServiceAccountName).To(Equal(cronJobSAName))
+			Expect(cronJobSAName).NotTo(Equal(deploySAName))
 
 			checkCronJob(resource.Status.Applied.CronJob, cronJob.Spec)
 		})
