@@ -544,19 +544,28 @@ def get_app(
 
     @app.post("/materialize", dependencies=[Depends(inject_user_details)])
     async def materialize(request: MaterializeRequest) -> None:
-        for feature_view in request.feature_views or []:
-            resource = await _get_feast_object(feature_view, True)
-            assert_permissions(
-                resource=resource,
-                actions=[AuthzedAction.WRITE_ONLINE],
+        if request.feature_views:
+            for feature_view in request.feature_views:
+                resource = await _get_feast_object(feature_view, True)
+                assert_permissions(
+                    resource=resource,
+                    actions=[AuthzedAction.WRITE_ONLINE],
+                )
+        else:
+            feature_views_to_materialize = (
+                store._get_feature_views_to_materialize(None)
             )
+            for fv in feature_views_to_materialize:
+                assert_permissions(
+                    resource=fv,
+                    actions=[AuthzedAction.WRITE_ONLINE],
+                )
 
         if request.disable_event_timestamp:
-            # Query all available data and use current datetime as event timestamp
             now = datetime.now()
             start_date = datetime(
                 1970, 1, 1
-            )  # Beginning of time to capture all historical data
+            )
             end_date = now
         else:
             if not request.start_ts or not request.end_ts:
@@ -577,12 +586,22 @@ def get_app(
 
     @app.post("/materialize-incremental", dependencies=[Depends(inject_user_details)])
     async def materialize_incremental(request: MaterializeIncrementalRequest) -> None:
-        for feature_view in request.feature_views or []:
-            resource = await _get_feast_object(feature_view, True)
-            assert_permissions(
-                resource=resource,
-                actions=[AuthzedAction.WRITE_ONLINE],
+        if request.feature_views:
+            for feature_view in request.feature_views:
+                resource = await _get_feast_object(feature_view, True)
+                assert_permissions(
+                    resource=resource,
+                    actions=[AuthzedAction.WRITE_ONLINE],
+                )
+        else:
+            feature_views_to_materialize = (
+                store._get_feature_views_to_materialize(None)
             )
+            for fv in feature_views_to_materialize:
+                assert_permissions(
+                    resource=fv,
+                    actions=[AuthzedAction.WRITE_ONLINE],
+                )
         await run_in_threadpool(
             store.materialize_incremental,
             utils.make_tzaware(parser.parse(request.end_ts)),
