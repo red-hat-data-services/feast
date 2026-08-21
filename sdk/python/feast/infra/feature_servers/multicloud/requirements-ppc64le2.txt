@@ -1,19 +1,19 @@
---index-url https://packages.redhat.com/api/pypi/public-rhai/rhoai/3.5/cpu-ubi9/simple/
+--index-url https://packages.redhat.com/api/pypi/public-rhai/rhoai/3.6-EA1/cpu-ubi9/simple/
 
-duckdb==1.5.4 \
-    --hash=sha256:013f9110028320a5e54cba377c339b8d0de071a2b6b62d948b83e1ed7e9e9cb0
+duckdb==1.5.5 \
+    --hash=sha256:d8d5383c7e2b3218bae85fa7d7a238ca2e89aaba8540c0a350b5b5c1d3b22cbb
 
-numpy==2.5.0 \
-    --hash=sha256:c10e4909df3fe94310f92c05abdc161fcb138aad18bd1234d4893bbbe39e8bfc
+numpy==2.5.2 \
+    --hash=sha256:92b58e25cab7bc6e7ebc69952a84acdf7563af8b68ffc3296a6ae35fd347c6ed
 
 httptools==0.8.0 \
-    --hash=sha256:0d87c67fcf648e1b77acdd1eb0178be0a1252e3aeeec5985a9a7a87ae63dc05f
+    --hash=sha256:36065a8403a2d462ac86d47fe6ca1de18c5b3bbbbca2a1e898e1804a77111e1d
 
-grpcio==1.81.1 \
-    --hash=sha256:1c16f597305ca91b1830e12292e4341dd5cd360c38c043eca7189666c7cfd03b
+grpcio==1.83.0 \
+    --hash=sha256:102194d0fcb012620343aa26da2324dd8f7133145b566a4e2e3a17661ac46690
 
-snowflake-connector-python==4.6.0 \
-    --hash=sha256:eeceee2769be282b2c5d50ca780dcf512dbdc50833071268c1050d7c7db79a26
+snowflake-connector-python==4.7.2 \
+    --hash=sha256:433e2f3df65a95ae2af7346fbc38144b17c9f0afbb8df0ff60eb67a2e208943d
 
-librt==0.11.0 \
-    --hash=sha256:675b97d0f0ba894e693ec8b6641b7790961725a4ad012e4937baa024fe3d6eb2
+librt==0.15.0 \
+    --hash=sha256:1bc187a151092a75b6e2f085f0db198ff2a139919fec0a6742fbded5856e5d1a
