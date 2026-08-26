@@ -128,7 +128,7 @@ redis = [
 ]
 singlestore = ["singlestoredb<1.8.0"]
 snowflake = [
-    "snowflake-connector-python[pandas]>=3.7,<4",
+    "snowflake-connector-python[pandas]>=4.7.1",
 ]
 sqlite_vec = ["sqlite-vec==v0.1.6"]
 mcp = ["fastapi_mcp"]
@@ -138,7 +138,7 @@ dbt = ["dbt-artifacts-parser"]
 ci = [
     "build",
     "virtualenv==20.23.0",
-    "cryptography>=43.0,<44",
+    "cryptography>=46.0.5",
     "dbt-artifacts-parser",
     "ruff>=0.8.0",
     "mypy-protobuf>=3.1",
