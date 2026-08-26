@@ -61,6 +61,7 @@ REQUIRED = [
     "psutil",
     "bigtree>=0.19.2",
     "pyjwt",
+    "cryptography>=46.0.7,<47",
 ]
 
 GCP_REQUIRED = [
@@ -84,7 +85,7 @@ AWS_REQUIRED = ["boto3==1.38.27", "fsspec<=2024.9.0", "aiobotocore>2,<3"]
 KUBERNETES_REQUIRED = ["kubernetes"]
 
 SNOWFLAKE_REQUIRED = [
-    "snowflake-connector-python[pandas]>=3.7,<4",
+    "snowflake-connector-python[pandas]>=3.7,<5",
 ]
 
 SPARK_REQUIRED = [
@@ -198,7 +199,7 @@ CI_REQUIRED = (
     [
         "build",
         "virtualenv==20.23.0",
-        "cryptography>=43.0,<44",
+        "cryptography>=46.0.7,<47",
         "dbt-artifacts-parser>=0.6.0,<1",
         "ruff>=0.8.0",
         "mypy-protobuf>=3.1",
