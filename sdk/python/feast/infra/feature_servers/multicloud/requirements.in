@@ -1,0 +1,46 @@
+# Source requirements for feast feature server
+# Currently compiled against RHAI 3.6-EA1-test index (use -test during EA development)
+# Switch to production index (remove -test suffix) at GA
+#
+# To recompile:
+# uv pip compile requirements.in \
+#   --python-platform linux \
+#   --python-version 3.12 \
+#   --default-index https://packages.redhat.com/api/pypi/public-rhai/rhoai/3.6-EA1/cpu-ubi9-test/simple/ \
+#   --index-strategy first-index \
+#   --prerelease=if-necessary \
+#   --no-strip-markers \
+#   --generate-hashes \
+#   --emit-index-url \
+#   -o requirements-rhai.txt
+#
+# After compile, hashes in requirements-rhai.txt MUST match the RHAI wheel files
+# (build-tagged names like feast-0.66.0-1-py3-none-any.whl). uv --generate-hashes
+# currently records hashes that do not match those rebuilds; replace --hash
+# values with the sha256 fragments from:
+#   https://packages.redhat.com/api/pypi/public-rhai/rhoai/3.6-EA1/cpu-ubi9-test/simple/<package>/
+#
+# For GA release, change index URL to:
+#   https://packages.redhat.com/api/pypi/public-rhai/rhoai/3.6-EA1/cpu-ubi9/simple/
+#   (remove -test suffix)
+
+# feast[minimal] included to prefetch dependencies and RHAI wheel.
+# Dockerfile uses --force-reinstall to replace with source build.
+# [minimal] extras: aws, gcp, snowflake, redis, go, mysql, postgres-c,
+# opentelemetry, grpcio, k8s, duckdb, mcp, milvus
+feast[minimal] == 0.66.0
+
+# RHAI pandas 2.2.3 and 2.3.3 wheels segfault in datetime C APIs with
+# every numpy on this index. pandas >= 2.5 is required; RHAI's only
+# matching wheel is 3.0.5. Pair it with numpy 2.5.x (same ABI those
+# pandas 3 wheels were built against). Feast pyproject says pandas<3;
+# the image install uses --no-deps so this override is required until
+# RHAI ships a working pandas 2.x rebuild.
+numpy >= 2.5.0, < 3
+pandas >= 2.5
+
+# Build tools for hermetic `pip install --no-deps --no-build-isolation .`
+# setuptools upper bound matches pyproject.toml build-system.requires.
+setuptools >= 68.0, < 81
+setuptools-scm >= 8.0
+wheel >= 0.46.2

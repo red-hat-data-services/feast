@@ -1,70 +1,53 @@
-# Stage 1: Build with full Python 312 image (includes compilers and dev tools)
-FROM registry.access.redhat.com/ubi9/python-312:1 AS builder
+# AIPCC CPU base image with RHAI wheel index pre-configured
+# See: https://gitlab.com/redhat/rhel-ai/aipcc/internal-docs/-/blob/main/guides/base-images-adoption.md
+ARG BASE_IMAGE="quay.io/aipcc/base-images/cpu-el9.8"
+
+# Stage 1: Build feast from source
+FROM ${BASE_IMAGE} AS builder
 
 USER 0
 
-# Power (ppc64le) only: Install a known stable pyarrow version
-# to avoid compatibility issues with the version from requirements.
-RUN if [ "$(uname -m)" = "ppc64le" ]; then \
-        echo "Power architecture detected. Installing pinned pyarrow and re2 version..."; \
-        pip install pyarrow==22.0.0 re2==20220401; \
-    else \
-        echo "Non-Power architecture detected; skipping Power-specific pyarrow installation."; \
-    fi
+# Install dependencies from RHAI (runtime + build tools)
+COPY --chown=1001:0 sdk/python/feast/infra/feature_servers/multicloud/requirements-rhai.txt /tmp/requirements-rhai.txt
+COPY --chown=1001:0 sdk/python/feast/infra/feature_servers/multicloud/requirements.txt /tmp/feast-version.txt
+RUN pip install --no-deps -r /tmp/requirements-rhai.txt
 
-# Install feast from local source (dependencies resolve from Cachi2 cache)
-COPY sdk/python/feast/infra/feature_servers/multicloud/requirements.txt /tmp/feast-version.txt
-COPY pyproject.toml README.md /src/
-COPY sdk/python /src/sdk/python
+# Build feast from local source
+COPY --chown=1001:0 LICENSE pyproject.toml README.md /src/
+COPY --chown=1001:0 sdk/python /src/sdk/python
 WORKDIR /src
-RUN SETUPTOOLS_SCM_PRETEND_VERSION=$(awk -F'==' 'NR==2{gsub(/[[:space:]]/,"",$2); print $2}' /tmp/feast-version.txt) \
-    pip install '.[minimal]'
 
-# Stage 2: Minimal runtime image (no compilers or dev headers)
-FROM registry.access.redhat.com/ubi9/python-312-minimal:1
+# Build feast from source (--force-reinstall replaces RHAI wheel with local code)
+RUN SETUPTOOLS_SCM_PRETEND_VERSION=$(awk -F'==' 'NR==2{gsub(/[[:space:]]/,"",$2); print $2}' /tmp/feast-version.txt) && \
+    echo "Building feast version: ${SETUPTOOLS_SCM_PRETEND_VERSION}" && \
+    SETUPTOOLS_SCM_PRETEND_VERSION=${SETUPTOOLS_SCM_PRETEND_VERSION} \
+    pip install --no-deps --no-build-isolation --force-reinstall .
+
+# Stage 2: Runtime image
+FROM ${BASE_IMAGE}
 
 USER 0
 
-# Runtime shared libraries required by compiled Python extensions:
-#   libicu  - pyarrow (Arrow C++ depends on ICU)
-#   libpq   - psycopg[c] (PostgreSQL C adapter)
-RUN microdnf install -y git libicu libpq python3.12-devel postgresql-devel gcc openblas-devel && microdnf clean all
+# Copy the complete virtualenv from builder
+COPY --from=builder /opt/app-root /opt/app-root
 
-# Copy installed Python packages and entry-point scripts from builder
-COPY --from=builder /opt/app-root/lib /opt/app-root/lib
-COPY --from=builder /opt/app-root/lib64 /opt/app-root/lib64
-COPY --from=builder /opt/app-root/bin /opt/app-root/bin
-ENV PATH="/opt/app-root/bin:${PATH}" \
-    PYTHONPATH="/opt/app-root/lib64/python3.12/site-packages" \
-    LD_LIBRARY_PATH=/opt/app-root/lib64/python3.12/site-packages/re2/lib
-
-RUN echo "/opt/app-root/lib64/python3.12/site-packages/re2/lib" \
-    > /etc/ld.so.conf.d/re2.conf && \
-    ldconfig
-
-# When building from source, setuptools does not include non-Python data files
-# (static assets, UI build, templates, jinja2, sql) because there is no .git
-# dir for setuptools-scm to list tracked files.  Copy them from the source tree.
+# Copy non-Python assets that setuptools doesn't include
 COPY --from=builder /src/sdk/python/feast/static /opt/app-root/lib64/python3.12/site-packages/feast/static
 COPY --from=builder /src/sdk/python/feast/templates /opt/app-root/lib64/python3.12/site-packages/feast/templates
 COPY --from=builder /src/sdk/python/feast/api/registry/rest/templates /opt/app-root/lib64/python3.12/site-packages/feast/api/registry/rest/templates
 COPY --from=builder /src/sdk/python/feast/infra/utils/snowflake /opt/app-root/lib64/python3.12/site-packages/feast/infra/utils/snowflake
 
-# The PyPI wheel ships a pre-built React UI under feast/ui/build/; when
-# building from source that directory does not exist.  Create the minimal
-# structure the runtime needs (projects-list.json is overwritten at startup).
-RUN UI_DIR=$(python -c "import feast.ui as ui; print(ui.__path__)" | tr -d "[']") && \
-    mkdir -p "${UI_DIR}/build" && \
-    echo '{"projects":[]}' > "${UI_DIR}/build/projects-list.json" && \
-    chmod g+w "${UI_DIR}/build/projects-list.json"
+# Create UI directory structure
+RUN mkdir -p /opt/app-root/lib64/python3.12/site-packages/feast/ui/build && \
+    echo '{"projects":[]}' > /opt/app-root/lib64/python3.12/site-packages/feast/ui/build/projects-list.json && \
+    chmod g+w /opt/app-root/lib64/python3.12/site-packages/feast/ui/build/projects-list.json
 
-# default user
 USER 1001
 
 LABEL com.redhat.component="odh-feature-server" \
-      name="odh-feature-server-rhel9" \
-      description="odh-feature-server" \
-      summary="odh-feature-server" \
-      io.openshift.expose-services="" \
-      io.k8s.display-name="odh-feature-server" \
-      io.k8s.description="odh-feature-server"
+    name="odh-feature-server-rhel9" \
+    description="odh-feature-server" \
+    summary="odh-feature-server" \
+    io.openshift.expose-services="" \
+    io.k8s.display-name="odh-feature-server" \
+    io.k8s.description="odh-feature-server"
