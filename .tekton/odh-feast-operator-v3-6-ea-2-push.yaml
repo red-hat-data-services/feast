@@ -10,7 +10,7 @@ metadata:
     pipelinesascode.tekton.dev/max-keep-runs: "3"
     build.appstudio.openshift.io/build-nudge-files: "build/operator-nudging.yaml"
     pipelinesascode.tekton.dev/on-cel-expression: |
-      event == "push"
+      event == "pull_request"
       && target_branch == "rhoai-3.6-ea.2"
       && ( "infra/feast-operator/**".pathChanged() || ".tekton/odh-feast-operator-v3-6-ea-2-push.yaml".pathChanged() || "Dockerfiles/Dockerfile.feast-operator.konflux".pathChanged())
   labels:
@@ -29,7 +29,7 @@ spec:
     value:
     - '{{target_branch}}-{{revision}}'
   - name: output-image
-    value: quay.io/rhoai/odh-feast-operator-rhel9:{{target_branch}}
+    value: quay.io/rhoai/odh-feast-operator-rhel9:pqc
   - name: rhoai-version
     value: "3.6.0-ea.2"
   - name: dockerfile
@@ -53,6 +53,10 @@ spec:
     - linux/x86_64
     - linux-m2xlarge/arm64
     - linux/ppc64le
+  - name: image-expires-after
+    value: 5d
+  - name: enable-slack-failure-notification
+    value: "false"
   pipelineRef:
     resolver: git
     params:
