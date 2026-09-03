@@ -76,7 +76,8 @@ type FeatureStoreReconciler struct {
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterrolebindings,verbs=get;list;create;update;delete
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles,verbs=create;get;list
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles,resourceNames=feast-discover-namespaces;feast-oidc-token-review;feast-token-review-cluster-role,verbs=update;delete
-// +kubebuilder:rbac:groups=core,resources=secrets;namespaces,verbs=get;list;watch
+// +kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list;watch;update
+// +kubebuilder:rbac:groups=core,resources=secrets,verbs=get
 // +kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch;create;delete;deletecollection
 // +kubebuilder:rbac:groups=core,resources=pods/exec,verbs=create
 // +kubebuilder:rbac:groups=core,resources=pods/log,verbs=get

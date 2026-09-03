@@ -23193,10 +23193,10 @@ rules:
   - ""
   resources:
   - namespaces
-  - secrets
   verbs:
   - get
   - list
+  - update
   - watch
 - apiGroups:
   - ""
@@ -23232,6 +23232,7 @@ rules:
   - ""
   resources:
   - pods/log
+  - secrets
   verbs:
   - get
 - apiGroups:

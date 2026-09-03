@@ -147,7 +147,7 @@ metadata:
         }
       ]
     capabilities: Basic Install
-    createdAt: "2026-08-21T03:30:58Z"
+    createdAt: "2026-09-03T09:54:29Z"
     operators.operatorframework.io/builder: operator-sdk-v1.41.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
   name: feast-operator.v0.66.0
@@ -192,10 +192,10 @@ spec:
           - ""
           resources:
           - namespaces
-          - secrets
           verbs:
           - get
           - list
+          - update
           - watch
         - apiGroups:
           - ""
@@ -231,6 +231,7 @@ spec:
           - ""
           resources:
           - pods/log
+          - secrets
           verbs:
           - get
         - apiGroups:
