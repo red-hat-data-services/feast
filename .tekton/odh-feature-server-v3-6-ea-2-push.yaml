@@ -52,9 +52,9 @@ spec:
         }
       ]
   - name: build-source-image
-    value: true
+    value: "true"
   - name: build-image-index
-    value: true
+    value: "true"
   - name: build-platforms
     value:
     - linux/x86_64
