@@ -1,7 +1,7 @@
 # AIPCC CPU base image with RHAI wheel index pre-configured
 # See: https://gitlab.com/redhat/rhel-ai/aipcc/internal-docs/-/blob/main/guides/base-images-adoption.md
 # Pin tag+digest so builds are reproducible; MintMaker/Renovate bumps the digest.
-ARG BASE_IMAGE="quay.io/aipcc/base-images/cpu-el9.8"
+ARG BASE_IMAGE="quay.io/aipcc/base-images/cpu-el9.8@sha256:5dbe6a3e14877ef9fbda55e6cef66430a244c6a5c73a9a72bfef5b3af31e44c5"
 
 # Stage 1: Build feast from source
 FROM ${BASE_IMAGE} AS builder
