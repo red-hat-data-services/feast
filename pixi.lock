@@ -2238,8 +2238,8 @@ packages:
   requires_python: '>=3.10'
 - pypi: ./
   name: feast
-  version: 0.62.1.dev344+g394467c62.d20260721
-  sha256: 7f0bed2deb072dcf1b8e217cd0ce9144d0cac20cc29538b5b991c629db5a901e
+  version: 0.62.1.dev364+g6a494f763
+  sha256: d0b936e3ebc9b1ba810765e8eb36cae22f24f120b05dbe8e8a4159df4eb51597
   requires_dist:
   - click>=7.0.0,<9.0.0
   - colorama>=0.3.9,<1
@@ -2285,7 +2285,7 @@ packages:
   - couchbase==4.3.2 ; extra == 'couchbase'
   - couchbase-columnar==1.0.0 ; extra == 'couchbase'
   - deltalake<1.0.0 ; extra == 'delta'
-  - docling==2.27.0 ; extra == 'docling'
+  - docling==2.74.0 ; extra == 'docling'
   - ibis-framework[duckdb]>=10.0.0 ; extra == 'duckdb'
   - elasticsearch>=8.13.0 ; extra == 'elasticsearch'
   - faiss-cpu>=1.7.0,<=1.10.0 ; extra == 'faiss'
@@ -2308,7 +2308,7 @@ packages:
   - kubernetes ; extra == 'k8s'
   - feast[pytorch] ; extra == 'image'
   - timm>=0.6.0 ; extra == 'image'
-  - pillow>=8.0.0 ; extra == 'image'
+  - pillow>=12.3.0 ; extra == 'image'
   - scikit-learn>=1.0.0 ; extra == 'image'
   - pymilvus>2.5 ; extra == 'milvus'
   - milvus-lite==2.4.12 ; extra == 'milvus'
