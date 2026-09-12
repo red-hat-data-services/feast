@@ -68,7 +68,7 @@ class OnDemandFeatureView(BaseFeatureView):
     features: List[Field]
     source_feature_view_projections: dict[str, FeatureViewProjection]
     source_request_sources: dict[str, RequestSource]
-    feature_transformation: Transformation
+    feature_transformation: Optional[Transformation]
     mode: str
     description: str
     tags: dict[str, str]
@@ -184,9 +184,14 @@ class OnDemandFeatureView(BaseFeatureView):
                 features.append(field)
 
         self.features = features
-        self.feature_transformation = (
-            feature_transformation or self.get_feature_transformation()
-        )
+        if feature_transformation is not None:
+            self.feature_transformation = feature_transformation
+        elif self.udf is not None:
+            self.feature_transformation = self.get_feature_transformation()
+        else:
+            # Metadata-only view (from_proto(skip_udf=True)): no UDF was deserialized,
+            # so there is no transformation to derive.
+            self.feature_transformation = None
         self.write_to_online_store = write_to_online_store
         self.singleton = singleton
         if self.singleton and self.mode != "python":
@@ -375,7 +380,9 @@ class OnDemandFeatureView(BaseFeatureView):
         ) in on_demand_feature_view_proto.spec.sources.items():
             if on_demand_source.WhichOneof("source") == "feature_view":
                 sources.append(
-                    FeatureView.from_proto(on_demand_source.feature_view).projection
+                    FeatureView.from_proto(
+                        on_demand_source.feature_view, skip_udf=skip_udf
+                    ).projection
                 )
             elif on_demand_source.WhichOneof("source") == "feature_view_projection":
                 sources.append(
@@ -388,7 +395,12 @@ class OnDemandFeatureView(BaseFeatureView):
                     RequestSource.from_proto(on_demand_source.request_data_source)
                 )
 
-        if (
+        # Deserializing a UDF invokes dill.loads() on caller-supplied bytes, which is
+        # equivalent to arbitrary code execution. Callers that have not authorized the
+        # request yet pass skip_udf=True (CVE-2026-56121).
+        if skip_udf:
+            transformation = None
+        elif (
             on_demand_feature_view_proto.spec.feature_transformation.WhichOneof(
                 "transformation"
             )
