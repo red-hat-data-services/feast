@@ -7,24 +7,22 @@ USER 0
 RUN dnf upgrade -y --refresh && dnf clean all
 
 # Copy Power prebuild script
+COPY sdk/python/requirements/py3.12-minimal-requirements.txt /tmp/requirements.txt
 COPY sdk/python/feast/infra/feature_servers/multicloud/prebuild-power.sh /prebuild-power.sh
 RUN chmod +x /prebuild-power.sh
 
-# Run prebuild script conditionally (Power only)
 RUN if [ "$(uname -m)" = "ppc64le" ]; then \
-        echo "Power architecture detected. Running prebuild script..."; \
-        /prebuild-power.sh && pip install /wheelhouse/*.whl; \
-        echo "Listing built wheels:" && ls -lh /wheelhouse; \
+        echo "Power architecture detected. Installing Power-specific packages..."; \
+        /prebuild-power.sh; \
     else \
-        echo "Non-Power architecture detected; skipping Power prebuild"; \
+        echo "Non-Power architecture detected; skipping Power-specific packages"; \
     fi
 
 # Install locked dependencies (without feast itself)
-# On ppc64le the prebuild script already compiled pyarrow from source;
-# strip it and milvus-lite (no ppc64le wheel for v2.4.x) from the locked list.
-COPY sdk/python/requirements/py3.12-minimal-requirements.txt /tmp/requirements.txt
+# On ppc64le the prebuild script installs the IBM Power PyArrow wheel;
+# strip pyarrow from the locked list so pip does not install a different version.
 RUN if [ "$(uname -m)" = "ppc64le" ]; then \
-        grep -iv '^pyarrow\|^milvus-lite' /tmp/requirements.txt > /tmp/requirements-filtered.txt && \
+        grep -iv '^pyarrow' /tmp/requirements.txt > /tmp/requirements-filtered.txt && \
         pip install --no-deps -r /tmp/requirements-filtered.txt; \
     else \
         pip install --no-deps -r /tmp/requirements.txt; \
