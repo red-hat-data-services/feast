@@ -21,10 +21,10 @@ RUN if [ "$(uname -m)" = "ppc64le" ]; then \
 
 # Install locked dependencies (without feast itself)
 # On ppc64le the prebuild script already compiled pyarrow from source;
-# strip it from the locked list so pip doesn't try to rebuild a different version.
+# strip it and milvus-lite (no ppc64le wheel for v2.4.x) from the locked list.
 COPY sdk/python/requirements/py3.12-minimal-requirements.txt /tmp/requirements.txt
 RUN if [ "$(uname -m)" = "ppc64le" ]; then \
-        grep -iv '^pyarrow' /tmp/requirements.txt > /tmp/requirements-filtered.txt && \
+        grep -iv '^pyarrow\|^milvus-lite' /tmp/requirements.txt > /tmp/requirements-filtered.txt && \
         pip install --no-deps -r /tmp/requirements-filtered.txt; \
     else \
         pip install --no-deps -r /tmp/requirements.txt; \
