@@ -1,5 +1,5 @@
 # Stage 1: Build with full Python 311 image (includes compilers and dev tools)
-FROM registry.access.redhat.com/ubi9/python-311:1 AS builder
+FROM registry.access.redhat.com/ubi9/python-311:1@sha256:a0bdb55576fc5b8d6704279307817828ef027e1065533ceba133fe9516003a6c AS builder
 
 USER 0
 
@@ -41,7 +41,7 @@ RUN SETUPTOOLS_SCM_PRETEND_VERSION=$(awk -F'==' 'NR==2{gsub(/[[:space:]]/,"",$2)
 # Stage 2: Runtime image
 # NOTE: ubi9/python-311-minimal does not exist in the Red Hat registry;
 # only python-312-minimal is published.  Use the full python-311 image.
-FROM registry.access.redhat.com/ubi9/python-311:1
+FROM registry.access.redhat.com/ubi9/python-311:1@sha256:a0bdb55576fc5b8d6704279307817828ef027e1065533ceba133fe9516003a6c
 
 USER 0
 
