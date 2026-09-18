@@ -1,117 +1,39 @@
 #!/bin/bash
 set -Eeuo pipefail
 trap 'echo "[prebuild-power] failed at line $LINENO"; exit 1' ERR
-shopt -s dotglob nullglob
 
-PYTHON_VERSION=3.12
-WORKDIR=$(pwd)
-CMAKE_VERSION=3.30.5
-CMAKE_REQUIRED_VERSION=3.30.5
+IBM_PYPI_INDEX="https://wheels.developerfirst.ibm.com/ppc64le/linux/+simple"
+REQUIREMENTS_FILE="/tmp/requirements.txt"
+POWER_REQUIREMENTS_FILE="/tmp/power-requirements.txt"
 
-dnf install -y make gcc-toolset-13 cmake ninja-build libomp-devel \
-               git python${PYTHON_VERSION} python${PYTHON_VERSION}-devel python${PYTHON_VERSION}-pip \
-               openssl openssl-devel zlib-devel libuuid-devel 
+# Packages that need Power-compatible prebuilt wheels.
+# pyarrow is intentionally excluded because we pin an IBM-available version below.
+PACKAGES="duckdb|grpcio|milvus-lite|pandas|numpy"
 
+echo "Finding required package versions from ${REQUIREMENTS_FILE}..."
 
-source /opt/rh/gcc-toolset-13/enable
-export CXX=/opt/rh/gcc-toolset-13/root/usr/bin/g++
-export CFLAGS="-mcmodel=medium -ffunction-sections"
-export LDFLAGS="-Wl,--stub-group-size=0x00002000 -Wl,--gc-sections"
+grep -Ei "^[[:space:]]*(${PACKAGES})([<>=!~].*)?[[:space:]]*$" \
+    "${REQUIREMENTS_FILE}" \
+    | sed 's/[[:space:]]*\\[[:space:]]*$//' \
+    > "${POWER_REQUIREMENTS_FILE}"
 
-# GCC toolset 13 does not include libatomic, causing '-latomic not found' during linking.
-# Symlink the system-provided libatomic.so.1 so the compiler can resolve it.
-ln -s /usr/lib64/libatomic.so.1   /opt/rh/gcc-toolset-13/root/usr/lib/gcc/ppc64le-redhat-linux/13/libatomic.so
+echo "Power-specific requirements:"
+cat "${POWER_REQUIREMENTS_FILE}"
 
-# Ensure CXXFLAGS and LINKFLAGS are initialized
-: "${CMAKE_ARGS:=""}"
-: "${CXXFLAGS:=""}"
-: "${CFLAGS:=""}"
-: "${LINKFLAGS:=""}"
+echo "Installing Power packages from IBM index..."
 
-# Installing Python build dependencies
-# fix pandas build
-python${PYTHON_VERSION} -m pip install pandas==2.3.3 --extra-index-url https://wheels.developerfirst.ibm.com/ppc64le/linux/+simple/
-python${PYTHON_VERSION} -m pip install build wheel 'setuptools<78' ninja pybind11 numpy setuptools_scm Cython
+python3.12 -m pip install \
+    --extra-index-url "${IBM_PYPI_INDEX}" \
+    -r "${POWER_REQUIREMENTS_FILE}"
 
-# Directory to collect built wheels
-mkdir -p /wheelhouse
+echo "Installing pinned PyArrow version..."
 
-#######################################################
-# Build DuckDB (Python package)
-#######################################################
-echo "Entering DuckDB source directory..."
-git clone https://github.com/duckdb/duckdb.git
-cd duckdb
-git checkout v1.1.3
-cd tools/pythonpkg
-export SETUPTOOLS_SCM_PRETEND_VERSION=1.1.3
-python${PYTHON_VERSION} -m build --wheel --no-isolation
-# Cleanup
-unset SETUPTOOLS_SCM_PRETEND_VERSION
-ls dist/*.whl >/dev/null
-cp -v dist/*.whl /wheelhouse/
-cd $WORKDIR
+python3.12 -m pip install \
+    --extra-index-url "${IBM_PYPI_INDEX}" \
+    pyarrow==22.0.0
 
-#######################################################
-# Build gRPC  (Python package)
-#######################################################
-echo "Building grpcio..."
-export GRPC_PYTHON_BUILD_SYSTEM_OPENSSL=1
-pip install grpcio==1.62.3
+echo "Installed packages:"
+python3.12 -m pip list | grep -Ei \
+    'duckdb|grpcio|pyarrow|milvus-lite|pandas|numpy'
 
-#######################################################
-# Build Pyarrow  (Python package)
-#######################################################
-echo "Entering Pyarrow source directory..."
-git clone https://github.com/apache/arrow.git
-cd arrow
-git checkout apache-arrow-22.0.0
-git submodule update --init --recursive
-cd cpp
-mkdir -p release && cd release
-cmake -DCMAKE_BUILD_TYPE=Release \
-      -DCMAKE_INSTALL_PREFIX=/usr/local \
-      -DARROW_PYTHON=ON \
-      -DARROW_PARQUET=ON \
-      -DARROW_ORC=ON \
-      -DARROW_FILESYSTEM=ON \
-      -DARROW_FLIGHT=ON \
-      -DARROW_WITH_LZ4=ON \
-      -DARROW_WITH_ZSTD=ON \
-      -DARROW_WITH_SNAPPY=ON \
-      -DARROW_JSON=ON \
-      -DARROW_CSV=ON \
-      -DARROW_DATASET=ON \
-      -DARROW_S3=ON \
-      -DARROW_BUILD_TESTS=OFF \
-      -DARROW_SUBSTRAIT=ON \
-      -DProtobuf_SOURCE=BUNDLED \
-      -DARROW_DEPENDENCY_SOURCE=BUNDLED \
-    ..
-make -j$(nproc)
-make install
-cd ../../python
-export BUILD_TYPE=release
-python${PYTHON_VERSION} setup.py build_ext --build-type=$BUILD_TYPE --bundle-arrow-cpp bdist_wheel
-ls dist/*.whl >/dev/null
-cp -v dist/*.whl /wheelhouse/
-cd ../../..
-
-#######################################################
-# Build Milvus-Lite  (Python package)
-#######################################################
-echo "Building milvus-lite..."
-dnf remove -y gcc-toolset-13
-dnf install -y perl ncurses-devel wget openblas-devel cargo gcc gcc-c++ libstdc++-static which libaio \
-               libtool m4 autoconf automake zlib-devel libffi-devel scl-utils xz
-
-export CC=gcc
-export CXX=g++
-export CXXFLAGS="-std=c++17"
-
-python${PYTHON_VERSION} -m pip install conan==1.64.1 setuptools==70.0.0
-
-git clone -b v2.4.12 https://github.com/milvus-io/milvus-lite.git
-cd milvus-lite/python
-git submodule update --init --recursive
-python${PYTHON_VERSION} -m pip install -v -e .
+echo "[prebuild-power] completed successfully."
