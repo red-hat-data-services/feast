@@ -28,7 +28,8 @@ ln -s /usr/lib64/libatomic.so.1   /opt/rh/gcc-toolset-13/root/usr/lib/gcc/ppc64l
 : "${LINKFLAGS:=""}"
 
 # Installing Python build dependencies
-python${PYTHON_VERSION} -m pip install build wheel setuptools ninja pybind11 numpy==2.3.3 setuptools_scm Cython
+# Pin Cython <3.3.0: version 3.3.0+ introduced stricter GIL checks that break PyArrow 22.0.0 compilation
+python${PYTHON_VERSION} -m pip install build wheel setuptools ninja pybind11 numpy==2.3.3 setuptools_scm "Cython<3.3.0"
 
 # Directory to collect built wheels
 mkdir -p /wheelhouse
