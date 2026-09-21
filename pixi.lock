@@ -1229,7 +1229,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/6d/4f/d073e09df851cfa251ef7840007d04db3293a0482ce607d2b993926089be/s3transfer-0.13.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/9d/76/f789f7a86709c6b087c5a2f52f911838cad707cc613162401badc665acfe/setuptools-82.0.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/ab/2f/4e1d2c1f93fa0009a4f34ba5168060e719cb1d9fef319fb0970f1e0bd8d6/snowflake_connector_python-4.4.0-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
+      - pypi: https://files.pythonhosted.org/packages/0c/a7/c43876b1a92932640722eeeb512f04b96a0a7902bda77e4273010cb5c0b3/snowflake_connector_python-4.7.2-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/32/46/9cb0e58b2deb7f82b84065f37f3bffeb12413f947f9388e4cac22c4621ce/sortedcontainers-2.4.0-py2.py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/5c/ad/6c4395649a212a6c603a72c5b9ab5dce3135a1546cfdffa3c427e71fd535/sqlalchemy-2.0.48-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/9f/85/492183764d5d01d4514be3730fdb8e228a80605783099551c51627578b5d/starlette-1.2.0-py3-none-any.whl
@@ -1402,7 +1402,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/6d/4f/d073e09df851cfa251ef7840007d04db3293a0482ce607d2b993926089be/s3transfer-0.13.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/9d/76/f789f7a86709c6b087c5a2f52f911838cad707cc613162401badc665acfe/setuptools-82.0.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/01/b1/11c03e05bd2a2da590c1b77c8455f40eb505888a2683c4e41b487d79568c/snowflake_connector_python-4.4.0.tar.gz
+      - pypi: https://files.pythonhosted.org/packages/07/73/e6e45343dd133207a6f710a88e0675ae69f8c12c23efe7f192448bbdace9/snowflake_connector_python-4.7.2.tar.gz
       - pypi: https://files.pythonhosted.org/packages/32/46/9cb0e58b2deb7f82b84065f37f3bffeb12413f947f9388e4cac22c4621ce/sortedcontainers-2.4.0-py2.py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/46/2c/9664130905f03db57961b8980b05cab624afd114bf2be2576628a9f22da4/sqlalchemy-2.0.48-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/9f/85/492183764d5d01d4514be3730fdb8e228a80605783099551c51627578b5d/starlette-1.2.0-py3-none-any.whl
@@ -1575,7 +1575,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/6d/4f/d073e09df851cfa251ef7840007d04db3293a0482ce607d2b993926089be/s3transfer-0.13.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/9d/76/f789f7a86709c6b087c5a2f52f911838cad707cc613162401badc665acfe/setuptools-82.0.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/a7/31/0d6a1da486dc13263f43cdad0bbacdd041616c32220b9bcbff79160bdcc1/snowflake_connector_python-4.4.0-cp310-cp310-macosx_11_0_arm64.whl
+      - pypi: https://files.pythonhosted.org/packages/07/73/e6e45343dd133207a6f710a88e0675ae69f8c12c23efe7f192448bbdace9/snowflake_connector_python-4.7.2.tar.gz
       - pypi: https://files.pythonhosted.org/packages/32/46/9cb0e58b2deb7f82b84065f37f3bffeb12413f947f9388e4cac22c4621ce/sortedcontainers-2.4.0-py2.py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/9a/67/1235676e93dd3b742a4a8eddfae49eea46c85e3eed29f0da446a8dd57500/sqlalchemy-2.0.48-cp310-cp310-macosx_11_0_arm64.whl
       - pypi: https://files.pythonhosted.org/packages/9f/85/492183764d5d01d4514be3730fdb8e228a80605783099551c51627578b5d/starlette-1.2.0-py3-none-any.whl
@@ -2238,8 +2238,8 @@ packages:
   requires_python: '>=3.10'
 - pypi: ./
   name: feast
-  version: 0.62.1.dev344+g394467c62.d20260721
-  sha256: 7f0bed2deb072dcf1b8e217cd0ce9144d0cac20cc29538b5b991c629db5a901e
+  version: 0.62.1.dev364+g08f7b7dc5
+  sha256: fc75e6f6bfd511257de301338f69c5a6f50e2aad8dddae12edc5ab12700a16e8
   requires_dist:
   - click>=7.0.0,<9.0.0
   - colorama>=0.3.9,<1
@@ -2338,7 +2338,7 @@ packages:
   - redis>=4.2.2,<5 ; extra == 'redis'
   - hiredis>=2.0.0,<3 ; extra == 'redis'
   - singlestoredb<1.8.0 ; extra == 'singlestore'
-  - snowflake-connector-python[pandas]>=3.7,<5 ; extra == 'snowflake'
+  - snowflake-connector-python[pandas]>=4.7.1,<5 ; extra == 'snowflake'
   - sqlite-vec==0.1.6 ; extra == 'sqlite-vec'
   - fastapi-mcp ; extra == 'mcp'
   - dbt-artifacts-parser ; extra == 'dbt'
@@ -6487,10 +6487,10 @@ packages:
   version: 1.17.0
   sha256: 4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274
   requires_python: '>=2.7,!=3.0.*,!=3.1.*,!=3.2.*'
-- pypi: https://files.pythonhosted.org/packages/01/b1/11c03e05bd2a2da590c1b77c8455f40eb505888a2683c4e41b487d79568c/snowflake_connector_python-4.4.0.tar.gz
+- pypi: https://files.pythonhosted.org/packages/07/73/e6e45343dd133207a6f710a88e0675ae69f8c12c23efe7f192448bbdace9/snowflake_connector_python-4.7.2.tar.gz
   name: snowflake-connector-python
-  version: 4.4.0
-  sha256: 648f49029d699591af0f253e81c5bf60efc4411c7b0149ef074a59a038210a3b
+  version: 4.7.2
+  sha256: c261b73b8dbe3f3d5b9bfdc19196f38e3eade42cb2f24322b7a2bb60fef76534
   requires_dist:
   - asn1crypto>0.24.0,<2.0.0
   - cryptography>=46.0.5
@@ -6501,7 +6501,6 @@ packages:
   - packaging
   - charset-normalizer>=2,<4
   - idna>=3.7,<4
-  - urllib3>=1.26.5,<2.0.0 ; python_full_version < '3.10'
   - certifi>=2024.7.4
   - typing-extensions>=4.3,<5
   - filelock>=3.5,<4
@@ -6512,9 +6511,11 @@ packages:
   - botocore>=1.24
   - boto3>=1.24 ; extra == 'boto'
   - botocore>=1.24 ; extra == 'boto'
-  - cython ; extra == 'development'
+  - azure-identity>=1.16 ; extra == 'azure'
+  - cython>=3.1 ; extra == 'development'
+  - azure-identity>=1.16 ; extra == 'development'
   - coverage ; extra == 'development'
-  - mitmproxy>=12.0.0 ; python_full_version >= '3.12' and extra == 'development'
+  - mitmproxy>=12.0.0 ; python_full_version >= '3.12' and python_full_version < '3.14' and extra == 'development'
   - more-itertools ; extra == 'development'
   - numpy<=2.4.3 ; extra == 'development'
   - pendulum!=2.1.1 ; extra == 'development'
@@ -6529,13 +6530,14 @@ packages:
   - responses ; extra == 'development'
   - pandas>=1.0.0,<3.0.0 ; python_full_version < '3.13' and extra == 'pandas'
   - pandas>=2.1.2,<3.0.0 ; python_full_version >= '3.13' and extra == 'pandas'
-  - pyarrow>=14.0.1 ; extra == 'pandas'
+  - pyarrow>=14.0.1,<24 ; python_full_version >= '3.14' and extra == 'pandas'
+  - pyarrow>=14.0.1 ; python_full_version < '3.14' and extra == 'pandas'
   - keyring>=23.1.0,<26.0.0 ; extra == 'secure-local-storage'
-  requires_python: '>=3.9'
-- pypi: https://files.pythonhosted.org/packages/a7/31/0d6a1da486dc13263f43cdad0bbacdd041616c32220b9bcbff79160bdcc1/snowflake_connector_python-4.4.0-cp310-cp310-macosx_11_0_arm64.whl
+  requires_python: '>=3.10'
+- pypi: https://files.pythonhosted.org/packages/0c/a7/c43876b1a92932640722eeeb512f04b96a0a7902bda77e4273010cb5c0b3/snowflake_connector_python-4.7.2-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
   name: snowflake-connector-python
-  version: 4.4.0
-  sha256: fb628d5ea1999e23bfbaabce4125eb44d56605ca5634b8b1d6092ab22d555598
+  version: 4.7.2
+  sha256: f4e0e083675bdf445a906c9b82a9472d1ab0b4ea69c25c82a6007b50a72f15cf
   requires_dist:
   - asn1crypto>0.24.0,<2.0.0
   - cryptography>=46.0.5
@@ -6546,7 +6548,6 @@ packages:
   - packaging
   - charset-normalizer>=2,<4
   - idna>=3.7,<4
-  - urllib3>=1.26.5,<2.0.0 ; python_full_version < '3.10'
   - certifi>=2024.7.4
   - typing-extensions>=4.3,<5
   - filelock>=3.5,<4
@@ -6557,9 +6558,11 @@ packages:
   - botocore>=1.24
   - boto3>=1.24 ; extra == 'boto'
   - botocore>=1.24 ; extra == 'boto'
-  - cython ; extra == 'development'
+  - azure-identity>=1.16 ; extra == 'azure'
+  - cython>=3.1 ; extra == 'development'
+  - azure-identity>=1.16 ; extra == 'development'
   - coverage ; extra == 'development'
-  - mitmproxy>=12.0.0 ; python_full_version >= '3.12' and extra == 'development'
+  - mitmproxy>=12.0.0 ; python_full_version >= '3.12' and python_full_version < '3.14' and extra == 'development'
   - more-itertools ; extra == 'development'
   - numpy<=2.4.3 ; extra == 'development'
   - pendulum!=2.1.1 ; extra == 'development'
@@ -6574,54 +6577,10 @@ packages:
   - responses ; extra == 'development'
   - pandas>=1.0.0,<3.0.0 ; python_full_version < '3.13' and extra == 'pandas'
   - pandas>=2.1.2,<3.0.0 ; python_full_version >= '3.13' and extra == 'pandas'
-  - pyarrow>=14.0.1 ; extra == 'pandas'
+  - pyarrow>=14.0.1,<24 ; python_full_version >= '3.14' and extra == 'pandas'
+  - pyarrow>=14.0.1 ; python_full_version < '3.14' and extra == 'pandas'
   - keyring>=23.1.0,<26.0.0 ; extra == 'secure-local-storage'
-  requires_python: '>=3.9'
-- pypi: https://files.pythonhosted.org/packages/ab/2f/4e1d2c1f93fa0009a4f34ba5168060e719cb1d9fef319fb0970f1e0bd8d6/snowflake_connector_python-4.4.0-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
-  name: snowflake-connector-python
-  version: 4.4.0
-  sha256: 9b1a28f843c1c0b582db7854789525d0c8aac4ea5c56e31113684e38220d0af9
-  requires_dist:
-  - asn1crypto>0.24.0,<2.0.0
-  - cryptography>=46.0.5
-  - pyopenssl>=24.0.0
-  - pyjwt>=2.10.1,<3.0.0
-  - pytz
-  - requests>=2.32.4,<3.0.0
-  - packaging
-  - charset-normalizer>=2,<4
-  - idna>=3.7,<4
-  - urllib3>=1.26.5,<2.0.0 ; python_full_version < '3.10'
-  - certifi>=2024.7.4
-  - typing-extensions>=4.3,<5
-  - filelock>=3.5,<4
-  - sortedcontainers>=2.4.0
-  - platformdirs>=2.6.0,<5.0.0
-  - tomlkit
-  - boto3>=1.24
-  - botocore>=1.24
-  - boto3>=1.24 ; extra == 'boto'
-  - botocore>=1.24 ; extra == 'boto'
-  - cython ; extra == 'development'
-  - coverage ; extra == 'development'
-  - mitmproxy>=12.0.0 ; python_full_version >= '3.12' and extra == 'development'
-  - more-itertools ; extra == 'development'
-  - numpy<=2.4.3 ; extra == 'development'
-  - pendulum!=2.1.1 ; extra == 'development'
-  - pexpect ; extra == 'development'
-  - pytest<7.5.0 ; extra == 'development'
-  - pytest-asyncio ; extra == 'development'
-  - pytest-cov ; extra == 'development'
-  - pytest-rerunfailures<16.0 ; extra == 'development'
-  - pytest-timeout ; extra == 'development'
-  - pytest-xdist ; extra == 'development'
-  - pytzdata ; extra == 'development'
-  - responses ; extra == 'development'
-  - pandas>=1.0.0,<3.0.0 ; python_full_version < '3.13' and extra == 'pandas'
-  - pandas>=2.1.2,<3.0.0 ; python_full_version >= '3.13' and extra == 'pandas'
-  - pyarrow>=14.0.1 ; extra == 'pandas'
-  - keyring>=23.1.0,<26.0.0 ; extra == 'secure-local-storage'
-  requires_python: '>=3.9'
+  requires_python: '>=3.10'
 - pypi: https://files.pythonhosted.org/packages/32/46/9cb0e58b2deb7f82b84065f37f3bffeb12413f947f9388e4cac22c4621ce/sortedcontainers-2.4.0-py2.py3-none-any.whl
   name: sortedcontainers
   version: 2.4.0
