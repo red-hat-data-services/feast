@@ -18,6 +18,9 @@ RUN if [ "$(uname -m)" = "ppc64le" ]; then \
         echo "Non-Power architecture detected; skipping Power-specific packages"; \
     fi
 
+# CVE-2026-8643: path traversal via malicious entry point name in pip wheel installation
+RUN pip install --upgrade "pip>=26.1.2"
+
 # Install locked dependencies (without feast itself)
 # On ppc64le the prebuild script installs the IBM Power PyArrow wheel;
 # strip pyarrow from the locked list so pip does not install a different version.
