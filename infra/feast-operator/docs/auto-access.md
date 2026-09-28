@@ -6,11 +6,23 @@ The Feast Operator automatically enables discovery and view access for users and
 
 ## Namespace Labeling
 
-The operator adds the label `opendatahub.io/feast: "true"` to namespaces that contain a deployed FeatureStore. This enables dashboards to discover Feast namespaces cluster-wide by listing namespaces with this label selector.
+The operator adds two labels to namespaces that contain a deployed FeatureStore.
+
+### `opendatahub.io/feast=true`
+
+Enables dashboards to discover Feast namespaces cluster-wide by listing namespaces with this label selector.
 
 - **Label**: `opendatahub.io/feast=true`
 - **When added**: After a FeatureStore is successfully deployed
 - **When removed**: When the last FeatureStore in the namespace is deleted
+
+### `opendatahub.io/dashboard=true`
+
+Marks the namespace as an OpenShift AI Data Science Project.
+
+- **Label**: `opendatahub.io/dashboard=true`
+- **When added**: After a FeatureStore is successfully deployed
+- **When removed**: Never
 
 ## Auto-Access RBAC
 

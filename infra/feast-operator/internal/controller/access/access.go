@@ -29,6 +29,10 @@ import (
 const (
 	FeastNamespaceLabelKey   = "opendatahub.io/feast"
 	FeastNamespaceLabelValue = "true"
+
+	// DashboardNamespaceLabelKey marks the namespace as a Data Science Project.
+	DashboardNamespaceLabelKey   = "opendatahub.io/dashboard"
+	DashboardNamespaceLabelValue = "true"
 )
 
 // EnsureNamespaceLabel adds the Feast discovery label to the namespace.
@@ -44,19 +48,31 @@ func EnsureNamespaceLabel(ctx context.Context, c client.Client, namespace string
 	if ns.Labels == nil {
 		ns.Labels = make(map[string]string)
 	}
-	if ns.Labels[FeastNamespaceLabelKey] == FeastNamespaceLabelValue {
+	needsFeast := ns.Labels[FeastNamespaceLabelKey] != FeastNamespaceLabelValue
+	needsDashboard := ns.Labels[DashboardNamespaceLabelKey] != DashboardNamespaceLabelValue
+	if !needsFeast && !needsDashboard {
 		return nil
 	}
 	ns.Labels[FeastNamespaceLabelKey] = FeastNamespaceLabelValue
+	ns.Labels[DashboardNamespaceLabelKey] = DashboardNamespaceLabelValue
 	if err := c.Update(ctx, ns); err != nil {
-		return fmt.Errorf("failed to patch namespace %s with Feast label: %w", namespace, err)
+		return fmt.Errorf("failed to patch namespace %s with Feast labels: %w", namespace, err)
 	}
-	log.FromContext(ctx).Info("Added Feast discovery label to namespace", "namespace", namespace)
+	logger := log.FromContext(ctx)
+	if needsFeast {
+		logger.Info("Added Feast discovery label to namespace", "namespace", namespace)
+	}
+	if needsDashboard {
+		logger.Info("Added dashboard Data Science Project label to namespace", "namespace", namespace)
+	}
 	return nil
 }
 
 // RemoveNamespaceLabelIfLast removes the Feast label from the namespace when
 // otherFeatureStoreCount is 0. Call when a FeatureStore is being deleted.
+//
+// DashboardNamespaceLabelKey is kept: the namespace may have been a Data
+// Science Project before any FeatureStore was deployed into it.
 func RemoveNamespaceLabelIfLast(ctx context.Context, c client.Client, namespace string, otherFeatureStoreCount int) error {
 	if otherFeatureStoreCount > 0 {
 		return nil

@@ -62,10 +62,16 @@ func TestEnsureNamespaceLabel_AddsLabel(t *testing.T) {
 	if updated.Labels[FeastNamespaceLabelKey] != FeastNamespaceLabelValue {
 		t.Fatalf("expected label %s=%s, got %v", FeastNamespaceLabelKey, FeastNamespaceLabelValue, updated.Labels)
 	}
+	if updated.Labels[DashboardNamespaceLabelKey] != DashboardNamespaceLabelValue {
+		t.Fatalf("expected label %s=%s, got %v", DashboardNamespaceLabelKey, DashboardNamespaceLabelValue, updated.Labels)
+	}
 }
 
 func TestEnsureNamespaceLabel_AlreadyLabeled(t *testing.T) {
-	ns := newNamespace("test-ns", map[string]string{FeastNamespaceLabelKey: FeastNamespaceLabelValue})
+	ns := newNamespace("test-ns", map[string]string{
+		FeastNamespaceLabelKey:     FeastNamespaceLabelValue,
+		DashboardNamespaceLabelKey: DashboardNamespaceLabelValue,
+	})
 	c := fake.NewClientBuilder().WithScheme(newScheme()).WithObjects(ns).Build()
 
 	if err := EnsureNamespaceLabel(context.Background(), c, "test-ns"); err != nil {
@@ -73,7 +79,24 @@ func TestEnsureNamespaceLabel_AlreadyLabeled(t *testing.T) {
 	}
 	updated := getNamespace(t, c)
 	if updated.Labels[FeastNamespaceLabelKey] != FeastNamespaceLabelValue {
-		t.Fatalf("label should still be present")
+		t.Fatalf("feast label should still be present")
+	}
+	if updated.Labels[DashboardNamespaceLabelKey] != DashboardNamespaceLabelValue {
+		t.Fatalf("dashboard label should still be present")
+	}
+}
+
+// Namespaces labelled by an older operator lack the dashboard label.
+func TestEnsureNamespaceLabel_BackfillsDashboardLabel(t *testing.T) {
+	ns := newNamespace("test-ns", map[string]string{FeastNamespaceLabelKey: FeastNamespaceLabelValue})
+	c := fake.NewClientBuilder().WithScheme(newScheme()).WithObjects(ns).Build()
+
+	if err := EnsureNamespaceLabel(context.Background(), c, "test-ns"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	updated := getNamespace(t, c)
+	if updated.Labels[DashboardNamespaceLabelKey] != DashboardNamespaceLabelValue {
+		t.Fatalf("dashboard label was not backfilled, got %v", updated.Labels)
 	}
 }
 
@@ -111,6 +134,26 @@ func TestRemoveNamespaceLabelIfLast_RemovesWhenZero(t *testing.T) {
 	updated := getNamespace(t, c)
 	if _, ok := updated.Labels[FeastNamespaceLabelKey]; ok {
 		t.Fatal("label should have been removed")
+	}
+}
+
+// The dashboard label is kept when the last FeatureStore is deleted.
+func TestRemoveNamespaceLabelIfLast_KeepsDashboardLabel(t *testing.T) {
+	ns := newNamespace("test-ns", map[string]string{
+		FeastNamespaceLabelKey:     FeastNamespaceLabelValue,
+		DashboardNamespaceLabelKey: DashboardNamespaceLabelValue,
+	})
+	c := fake.NewClientBuilder().WithScheme(newScheme()).WithObjects(ns).Build()
+
+	if err := RemoveNamespaceLabelIfLast(context.Background(), c, "test-ns", 0); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	updated := getNamespace(t, c)
+	if _, ok := updated.Labels[FeastNamespaceLabelKey]; ok {
+		t.Fatal("feast label should have been removed")
+	}
+	if updated.Labels[DashboardNamespaceLabelKey] != DashboardNamespaceLabelValue {
+		t.Fatal("dashboard label must not be removed")
 	}
 }
 
