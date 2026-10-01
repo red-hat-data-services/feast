@@ -1,5 +1,5 @@
-# Stage 1: Build with full Python 311 image (includes compilers and dev tools)
-FROM registry.access.redhat.com/ubi9/python-311:1@sha256:a0bdb55576fc5b8d6704279307817828ef027e1065533ceba133fe9516003a6c AS builder
+# Stage 1: Build with full Python 312 image (includes compilers and dev tools)
+FROM registry.access.redhat.com/ubi9/python-312:1@sha256:e6a10c3150624fbfd33dbd7721ef99ce7a1001b417d64427ad58515ab8044121 AS builder
 
 USER 0
 
@@ -7,7 +7,7 @@ USER 0
 RUN dnf upgrade -y --refresh && dnf clean all
 
 # Copy Power prebuild script
-COPY sdk/python/requirements/py3.11-minimal-requirements.txt /tmp/requirements.txt
+COPY sdk/python/requirements/py3.12-minimal-requirements.txt /tmp/requirements.txt
 COPY sdk/python/feast/infra/feature_servers/multicloud/prebuild-power.sh /prebuild-power.sh
 RUN chmod +x /prebuild-power.sh
 
@@ -38,23 +38,21 @@ RUN SETUPTOOLS_SCM_PRETEND_VERSION=$(awk -F'==' 'NR==2{gsub(/[[:space:]]/,"",$2)
     pip install --no-deps '.[minimal]'
 
 # Stage 2: Runtime image
-# NOTE: ubi9/python-311-minimal does not exist in the Red Hat registry;
-# only python-312-minimal is published.  Use the full python-311 image.
-FROM registry.access.redhat.com/ubi9/python-311:1@sha256:a0bdb55576fc5b8d6704279307817828ef027e1065533ceba133fe9516003a6c
+FROM registry.access.redhat.com/ubi9/python-312:1@sha256:e6a10c3150624fbfd33dbd7721ef99ce7a1001b417d64427ad58515ab8044121
 
 USER 0
 
 # Runtime shared libraries required by compiled Python extensions:
 #   libicu  - pyarrow (Arrow C++ depends on ICU)
 #   libpq   - psycopg[c] (PostgreSQL C adapter)
-RUN dnf install -y git libicu libpq python3.11-devel postgresql-devel gcc openblas-devel && dnf clean all
+RUN dnf install -y git libicu libpq python3.12-devel postgresql-devel gcc openblas-devel && dnf clean all
 
 # Copy installed Python packages and entry-point scripts from builder
 COPY --from=builder /opt/app-root/lib /opt/app-root/lib
 COPY --from=builder /opt/app-root/lib64 /opt/app-root/lib64
 COPY --from=builder /opt/app-root/bin /opt/app-root/bin
 ENV PATH="/opt/app-root/bin:${PATH}" \
-    PYTHONPATH="/opt/app-root/lib64/python3.11/site-packages"
+    PYTHONPATH="/opt/app-root/lib64/python3.12/site-packages"
 
 # When building from source, setuptools does not include non-Python data files
 # (static assets, UI build, templates, jinja2, sql) because there is no .git
@@ -63,10 +61,10 @@ ENV PATH="/opt/app-root/bin:${PATH}" \
 #   templates/           - feast init project scaffolding (Path / copytree)
 #   api/.../templates/   - REST registry Jinja2 codegen (FileSystemLoader)
 #   infra/utils/snowflake/ - SQL scripts for Snowflake registry & UDFs (open())
-COPY --from=builder /src/sdk/python/feast/static /opt/app-root/lib64/python3.11/site-packages/feast/static
-COPY --from=builder /src/sdk/python/feast/templates /opt/app-root/lib64/python3.11/site-packages/feast/templates
-COPY --from=builder /src/sdk/python/feast/api/registry/rest/templates /opt/app-root/lib64/python3.11/site-packages/feast/api/registry/rest/templates
-COPY --from=builder /src/sdk/python/feast/infra/utils/snowflake /opt/app-root/lib64/python3.11/site-packages/feast/infra/utils/snowflake
+COPY --from=builder /src/sdk/python/feast/static /opt/app-root/lib64/python3.12/site-packages/feast/static
+COPY --from=builder /src/sdk/python/feast/templates /opt/app-root/lib64/python3.12/site-packages/feast/templates
+COPY --from=builder /src/sdk/python/feast/api/registry/rest/templates /opt/app-root/lib64/python3.12/site-packages/feast/api/registry/rest/templates
+COPY --from=builder /src/sdk/python/feast/infra/utils/snowflake /opt/app-root/lib64/python3.12/site-packages/feast/infra/utils/snowflake
 
 # The PyPI wheel ships a pre-built React UI under feast/ui/build/; when
 # building from source that directory does not exist.  Create the minimal
