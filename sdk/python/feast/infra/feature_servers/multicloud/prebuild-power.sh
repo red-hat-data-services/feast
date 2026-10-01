@@ -23,7 +23,7 @@ cat "${POWER_REQUIREMENTS_FILE}"
 
 echo "Installing Power packages from IBM index..."
 
-python3.11 -m pip install \
+python3.12 -m pip install \
     --extra-index-url "${IBM_PYPI_INDEX}" \
     -r "${POWER_REQUIREMENTS_FILE}"
 
@@ -33,13 +33,13 @@ python3.11 -m pip install \
 
 echo "Installing build tools for source builds..."
 dnf install -y gcc-toolset-13 make cmake ninja-build libomp-devel \
-               git python3.11-devel openssl openssl-devel zlib-devel libuuid-devel
+               git python3.12-devel openssl openssl-devel zlib-devel libuuid-devel
 source /opt/rh/gcc-toolset-13/enable
 export CXX=/opt/rh/gcc-toolset-13/root/usr/bin/g++
 
 # Pin Cython < 3.1 — PyArrow 17.0.0 has a nogil/GIL incompatibility
 # with Cython ≥ 3.1 (ARROW-43552: table.pxi:6105).
-python3.11 -m pip install \
+python3.12 -m pip install \
     build wheel 'setuptools<78' ninja pybind11 setuptools_scm 'Cython<3.1'
 
 WORKDIR=$(pwd)
@@ -48,7 +48,7 @@ WORKDIR=$(pwd)
 echo "Building DuckDB 1.1.3 from source..."
 git clone --depth 1 -b v1.1.3 https://github.com/duckdb/duckdb.git
 cd duckdb/tools/pythonpkg
-SETUPTOOLS_SCM_PRETEND_VERSION=1.1.3 python3.11 -m build --wheel --no-isolation
+SETUPTOOLS_SCM_PRETEND_VERSION=1.1.3 python3.12 -m build --wheel --no-isolation
 pip install dist/*.whl
 cd "$WORKDIR"
 
@@ -77,12 +77,12 @@ cmake -DCMAKE_BUILD_TYPE=Release \
     ..
 make -j$(nproc) && make install
 cd ../../python
-BUILD_TYPE=release python3.11 setup.py build_ext --build-type=release --bundle-arrow-cpp bdist_wheel
+BUILD_TYPE=release python3.12 setup.py build_ext --build-type=release --bundle-arrow-cpp bdist_wheel
 pip install dist/*.whl
 cd "$WORKDIR"
 
 echo "Installed packages:"
-python3.11 -m pip list | grep -Ei \
+python3.12 -m pip list | grep -Ei \
     'duckdb|grpcio|pyarrow|milvus-lite|pandas|numpy'
 
 echo "[prebuild-power] completed successfully."
