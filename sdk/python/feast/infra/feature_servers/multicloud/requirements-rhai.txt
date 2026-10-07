@@ -234,8 +234,9 @@ google-crc32c==1.8.0 \
     #   google-cloud-bigtable
     #   google-cloud-storage
     #   google-resumable-media
-google-resumable-media==2.10.1 \
-    --hash=sha256:eec988db41a617b8777bb6ec25ba7f32c61f174b3a0625119a614c93d5b0e730 \
+google-resumable-media==2.10.2 \
+    --hash=sha256:1de441703cd298d75a419bfdc0066e9fc7b0a1de630df96eea8ce8f5c759358c \
+    --hash=sha256:e3cedc827a4ea41e216582d74346f1fb9fceb625a8c3c53912f2ca1d663334d7
     # via
     #   google-cloud-bigquery
     #   google-cloud-storage
