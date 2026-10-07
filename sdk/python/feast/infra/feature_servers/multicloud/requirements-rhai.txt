@@ -64,8 +64,9 @@ attrs==26.1.0 \
 bigtree==1.5.3 \
     --hash=sha256:2823d243557cccd569d8692961db2ac52876dc46529326b833b18fe228f23be6 \
     # via feast
-boto3==1.43.46 \
-    --hash=sha256:90f7804877a1345d77c5199afa930eaca06231c8b614bccd66553640374ec299 \
+boto3==1.43.83 \
+    --hash=sha256:6413d6e99f716af5d333a732db140e4b3359cac005a1271b11777b6d9ca82194 \
+    --hash=sha256:73a3564f737d4516625964eee709a498fa98ccee6aca929febad2b0b5fbeae1e
     # via
     #   feast
     #   snowflake-connector-python
