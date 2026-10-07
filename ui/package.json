@@ -39,7 +39,7 @@
     "query-string": "^7.1.1",
     "react-app-polyfill": "^3.0.0",
     "react-code-blocks": "^0.1.6",
-    "react-query": "^3.39.3",
+    "@tanstack/react-query": "^4.0.5",
     "react-router-dom": "^6.28.0",
     "reactflow": "^11.11.4",
     "tslib": "^2.3.1",
