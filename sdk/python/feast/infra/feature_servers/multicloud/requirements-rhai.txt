@@ -69,8 +69,9 @@ boto3==1.43.46 \
     # via
     #   feast
     #   snowflake-connector-python
-botocore==1.43.56 \
-    --hash=sha256:f65f11b7e9cc8efe3bf17ac585b84a2cef38d82465203486ef7c00bc42879fee \
+botocore==1.43.83 \
+    --hash=sha256:bf75a6cf587c22d968e43e79fe122c39f82deafbe9c3422bc5d3e80b6210fc98 \
+    --hash=sha256:d9389b3b74400c34219965a2fb858c1d48744718865ee0496fd03bd5b21b943f
     # via
     #   aiobotocore
     #   boto3
