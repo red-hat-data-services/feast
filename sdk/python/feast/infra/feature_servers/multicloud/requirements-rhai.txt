@@ -222,8 +222,9 @@ google-cloud-core==2.6.1 \
     #   google-cloud-bigtable
     #   google-cloud-datastore
     #   google-cloud-storage
-google-cloud-datastore==2.26.0 \
-    --hash=sha256:ec282764c4bcc638468f42b23ba98a0d5c6e04f498f28e61d189f81fa7bf0ac4 \
+google-cloud-datastore==2.26.1 \
+    --hash=sha256:57a1c2b27f67b3a5f09ad5e015c8ea4b343d4d980a859a0dd9a661dd79e003f8 \
+    --hash=sha256:a17c21ac0a8dc634625eb2c61b1997ccf86c05b3b79f2ea047d538b6cb82f6f5
     # via feast
 google-cloud-storage==2.19.0 \
     --hash=sha256:c1b0018d1b51d9475048be086e57f19c4e73a4d7a9689bb6f2b72403b5b3be77 \
