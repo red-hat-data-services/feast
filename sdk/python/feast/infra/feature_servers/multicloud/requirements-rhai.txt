@@ -600,8 +600,9 @@ python-dateutil==2.9.0.post0 \
     #   ibis-framework
     #   kubernetes
     #   pandas
-python-dotenv==1.2.2 \
-    --hash=sha256:80fb1792bc6998cfaab03bbaf68247bf138d86bcb7f88d6e832c823726646092 \
+python-dotenv==1.2.3 \
+    --hash=sha256:904552145e8bfed22162c09dab1c2b9b54fefa7b23ba780f4f26ca0316b0f0d9 \
+    --hash=sha256:a20a594dabeaa385725aa239d5244871c143ecb356add8a20fcf23773a6c3a35
     # via
     #   pydantic-settings
     #   pymilvus
