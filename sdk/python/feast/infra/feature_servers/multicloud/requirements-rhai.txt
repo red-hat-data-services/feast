@@ -274,8 +274,9 @@ grpcio==1.83.0 \
     #   grpcio-status
     #   milvus-lite
     #   pymilvus
-grpcio-health-checking==1.83.0 \
-    --hash=sha256:03e24f86f43125a2046d14ef793ea94131f19a6eec5fb7ebb978b03fe4f67012 \
+grpcio-health-checking==1.83.1 \
+    --hash=sha256:be7541053f5208bd0805d414ee51a3877323834a1ec6efc8dd39ffed3ebeeb36 \
+    --hash=sha256:d60924e6fbad38f35c372779bc5eb651a00e446d6d24f1d1c72f14297a1d0e56
     # via feast
 grpcio-reflection==1.83.0 \
     --hash=sha256:02498fb7770e3bf4baa78f80c5df83b4202891948ef7043b703a9460b13b61b2 \
