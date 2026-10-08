@@ -465,8 +465,9 @@ partd==1.4.2 \
 pathspec==1.1.1 \
     --hash=sha256:45973abce61c60e2a4026e583c97f44d7c9453efb6ea7ec6bfbb82ff2294bc55 \
     # via mypy
-platformdirs==4.11.3 \
-    --hash=sha256:601f4e43a01e9e85e759da05e1d17afa142ef7f57014ed039ed4582e6151a9b1 \
+platformdirs==4.11.5 \
+    --hash=sha256:89f8d42695853b89c7170bd49bc3dc593f98a71e695ede88e06a3b247bc4563b \
+    --hash=sha256:e8b31f4f8bcbbedef91a6b57a706255e4f148d2a4e01648382a0a47342539173
     # via snowflake-connector-python
 prometheus-client==0.24.1 \
     --hash=sha256:9b7b61989a04920aec5f42157cb28a4fd57931e09f05b174d0a0310907029eea \
