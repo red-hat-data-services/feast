@@ -375,8 +375,9 @@ mcp-types==2.0.0 \
 mdurl==0.1.2 \
     --hash=sha256:945211ddc5b51917b928c63b22e99d808b9083a266432d01033305123ff6716b \
     # via markdown-it-py
-milvus-lite==3.2.0 \
-    --hash=sha256:e613125cc4d3e71148783b6a97f806e3e31f05e51275969515aef003ad54c2cd \
+milvus-lite==3.2.1 \
+    --hash=sha256:0742fb4c54858bcc6fc3c2142ec651e2b0f4ae30f19e21d4fbc6db65b9e16c7b \
+    --hash=sha256:4d988fe0a6bbdfc708046014ad69f4b140c43567ecafd8b6df300ad7d37210f3
     # via feast
 mmh3==5.2.1 \
     --hash=sha256:86d4f2d8e4bd33bc37b41432f578616f125fb33b7770e24a580e8c17d4dc3319 \
