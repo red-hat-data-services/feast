@@ -277,8 +277,9 @@ grpcio==1.83.0 \
 grpcio-health-checking==1.83.0 \
     --hash=sha256:03e24f86f43125a2046d14ef793ea94131f19a6eec5fb7ebb978b03fe4f67012 \
     # via feast
-grpcio-reflection==1.83.0 \
-    --hash=sha256:02498fb7770e3bf4baa78f80c5df83b4202891948ef7043b703a9460b13b61b2 \
+grpcio-reflection==1.83.1 \
+    --hash=sha256:6f80bb2a8f8893545b5a1669fad48518a9e4783f8edd739a300be53e7d1ce0b2 \
+    --hash=sha256:c33953f2eae1313ab1d2c2b6a1cec6ddaebe6763da1b2631980792d9792e6233
     # via feast
 grpcio-status==1.83.0 \
     --hash=sha256:f8a96fa76fa2363e4cfd3c2df4e7c679fca752f585e797a3638537a0eac84245 \
