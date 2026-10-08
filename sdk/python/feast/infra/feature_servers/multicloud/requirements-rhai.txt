@@ -280,8 +280,9 @@ grpcio-health-checking==1.83.0 \
 grpcio-reflection==1.83.0 \
     --hash=sha256:02498fb7770e3bf4baa78f80c5df83b4202891948ef7043b703a9460b13b61b2 \
     # via feast
-grpcio-status==1.83.0 \
-    --hash=sha256:f8a96fa76fa2363e4cfd3c2df4e7c679fca752f585e797a3638537a0eac84245 \
+grpcio-status==1.83.1 \
+    --hash=sha256:2cd328ee62ef2b3eb957dd3b75db7dadcdbb76488fdc9ab3aba1ebfbbdc324a4 \
+    --hash=sha256:c08c8d553d6ab96effae1d923839de22926f5a316a942f48a48040e047c517af
     # via google-api-core
 gunicorn==26.0.0 \
     --hash=sha256:353bf0ccd9498011cb54eef4bef47f6f16f60b173936ce4f949a481bc4e4efc8 \
