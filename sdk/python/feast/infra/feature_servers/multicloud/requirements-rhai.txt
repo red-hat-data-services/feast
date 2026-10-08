@@ -479,8 +479,9 @@ propcache==0.5.2 \
     # via
     #   aiohttp
     #   yarl
-proto-plus==1.28.3 \
-    --hash=sha256:a5be36fe0739093bfb1b3476a50cfa3a99faecb513aee153646c2adac66236e4 \
+proto-plus==1.28.4 \
+    --hash=sha256:4b01341272f8a348db3f003b6143109f83ab43091019d5181b3fcdf500ab32aa \
+    --hash=sha256:5ff7ecad828e032a491fcb86947801768e32237f99dd049b649965b892ae9a63
     # via
     #   google-api-core
     #   google-cloud-bigquery-storage
