@@ -9,7 +9,7 @@ milvus-lite==2.4.12+ppc64le1 \
 pandas==2.3.3+ppc64le1 \
     --hash=sha256:e2ece34c1d05e094e4ec6ce1aac552579c515a8a589669e235293b18f1624c6c
 
-pyyaml==6.0.3+ppc64le1 \
+pyyaml==6.0.3+ppc64le2 \
     --hash=sha256:b1ba6aa297d0d6c493f78705b367e89df71c75e775e55bf4e368cba754857727
 
 psutil==7.2.2+ppc64le1 \
