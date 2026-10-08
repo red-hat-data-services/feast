@@ -48,6 +48,7 @@ import (
 	"github.com/feast-dev/feast/infra/feast-operator/internal/controller/authz"
 	feasthandler "github.com/feast-dev/feast/infra/feast-operator/internal/controller/handler"
 	feastmetrics "github.com/feast-dev/feast/infra/feast-operator/internal/controller/metrics"
+	"github.com/feast-dev/feast/infra/feast-operator/internal/controller/registry"
 	"github.com/feast-dev/feast/infra/feast-operator/internal/controller/services"
 	routev1 "github.com/openshift/api/route/v1"
 )
@@ -76,6 +77,9 @@ type FeatureStoreReconciler struct {
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterrolebindings,verbs=get;list;create;update;delete
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles,verbs=create;get;list
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles,resourceNames=feast-discover-namespaces;feast-oidc-token-review;feast-token-review-cluster-role,verbs=update;delete
+// namespaces update is required by access.EnsureNamespaceLabel and
+// RemoveNamespaceLabelIfLast, which write the opendatahub.io/feast
+// discovery label. Not present upstream; do not drop when syncing.
 // +kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list;watch;update
 // +kubebuilder:rbac:groups=core,resources=secrets,verbs=get
 // +kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch;create;delete;deletecollection
@@ -106,20 +110,7 @@ func (r *FeatureStoreReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			if r.Metrics != nil {
 				r.Metrics.DeleteFeatureStore(req.NamespacedName.Namespace, req.NamespacedName.Name)
 			}
-			r.removeNamespaceLabelIfLast(ctx, req.NamespacedName.Namespace, req.NamespacedName.Name)
-			// Clean up namespace registry and OpenLineage discovery entries
-			deletedCR := &feastdevv1.FeatureStore{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      req.NamespacedName.Name,
-					Namespace: req.NamespacedName.Namespace,
-				},
-			}
-			if err := r.cleanupNamespaceRegistry(ctx, deletedCR); err != nil {
-				logger.Error(err, "Failed to clean up namespace registry entry for deleted FeatureStore")
-			}
-			if err := r.cleanupOpenLineageDiscovery(ctx, deletedCR); err != nil {
-				logger.Error(err, "Failed to clean up OpenLineage discovery entry for deleted FeatureStore")
-			}
+			r.cleanupOnDeletion(ctx, req.NamespacedName.Namespace, req.NamespacedName.Name)
 			return ctrl.Result{}, nil
 		}
 		logger.Error(err, "Unable to get FeatureStore CR")
@@ -127,21 +118,11 @@ func (r *FeatureStoreReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 	currentStatus := cr.Status.DeepCopy()
 
-	// Handle deletion - clean up namespace registry and OpenLineage discovery entries
 	if cr.DeletionTimestamp != nil {
-		logger.Info("FeatureStore is being deleted, cleaning up registry entries")
 		if r.Metrics != nil {
 			r.Metrics.DeleteFeatureStore(cr.Namespace, cr.Name)
 		}
-		r.removeNamespaceLabelIfLast(ctx, cr.Namespace, cr.Name)
-		if err := r.cleanupNamespaceRegistry(ctx, cr); err != nil {
-			logger.Error(err, "Failed to clean up namespace registry entry")
-			return ctrl.Result{}, err
-		}
-		if err := r.cleanupOpenLineageDiscovery(ctx, cr); err != nil {
-			logger.Error(err, "Failed to clean up OpenLineage discovery entry")
-			return ctrl.Result{}, err
-		}
+		r.cleanupOnDeletion(ctx, cr.Namespace, cr.Name)
 		return ctrl.Result{}, nil
 	}
 
@@ -164,27 +145,29 @@ func (r *FeatureStoreReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 	}
 
-	// Add to namespace registry and OpenLineage discovery if deployment was successful
-	if recErr == nil && cr.DeletionTimestamp == nil {
-		// Label the namespace so dashboards can discover Feast namespaces cluster-wide.
-		if apimeta.IsStatusConditionTrue(cr.Status.Conditions, feastdevv1.ReadyType) {
-			if err := access.EnsureNamespaceLabel(ctx, r.Client, cr.Namespace); err != nil {
-				logger.Error(err, "Failed to add Feast label to namespace")
+	if recErr == nil && cr.DeletionTimestamp == nil && apimeta.IsStatusConditionTrue(cr.Status.Conditions, feastdevv1.ReadyType) {
+		if err := access.EnsureNamespaceLabel(ctx, r.Client, cr.Namespace); err != nil {
+			logger.Error(err, "Failed to add Feast label to namespace")
+		}
+		r.addToNamespaceRegistry(ctx, cr)
+		r.addToOpenLineageDiscovery(ctx, cr)
+		policies, err := r.fetchPermissionsFromRegistry(ctx, cr)
+		if err != nil {
+			logger.Error(err, "Failed to fetch permissions from registry")
+		}
+		if err != nil || len(policies) == 0 || cr.Status.ClientConfigMap == "" {
+			logger.V(1).Info("Auto-access prerequisites missing or registry unreachable; cleaning up stale auto-access RBAC",
+				"policies", len(policies),
+				"clientConfigMapSet", cr.Status.ClientConfigMap != "",
+				"fetchError", err != nil,
+			)
+			if err := access.CleanupAutoAccessRBAC(ctx, r.Client, cr.Namespace, cr.Name); err != nil {
+				logger.Error(err, "Failed to cleanup stale auto-access RBAC")
 			}
-		}
-		feast := services.FeastServices{
-			Handler: feasthandler.FeastHandler{
-				Client:       r.Client,
-				Context:      ctx,
-				FeatureStore: cr,
-				Scheme:       r.Scheme,
-			},
-		}
-		if err := feast.AddToNamespaceRegistry(); err != nil {
-			logger.Error(err, "Failed to add FeatureStore to namespace registry")
-		}
-		if err := feast.AddToOpenLineageDiscovery(); err != nil {
-			logger.Error(err, "Failed to add FeatureStore to OpenLineage discovery")
+		} else {
+			if err := access.ReconcileAutoAccessRBAC(ctx, r.Client, r.Scheme, cr, cr.Namespace, cr.Name, cr.Status.ClientConfigMap, policies); err != nil {
+				logger.Error(err, "Failed to reconcile auto-access RBAC")
+			}
 		}
 	}
 
@@ -192,6 +175,140 @@ func (r *FeatureStoreReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		result.RequeueAfter = RequeuePeriodicInterval
 	}
 	return result, recErr
+}
+
+func (r *FeatureStoreReconciler) fetchPermissionsFromRegistry(ctx context.Context, cr *feastdevv1.FeatureStore) ([]registry.PermissionPolicy, error) {
+	logger := log.FromContext(ctx)
+	registryRest := cr.Status.ServiceHostnames.RegistryRest
+	if registryRest == "" {
+		logger.V(1).Info("Skipping permission fetch: registry REST API hostname is not set (ensure RestAPI is enabled)")
+		return nil, nil
+	}
+	project := cr.Status.Applied.FeastProject
+	if project == "" {
+		project = cr.Spec.FeastProject
+	}
+	if project == "" {
+		logger.Info("Skipping permission fetch: feast project name is not set")
+		return nil, nil
+	}
+	intraCommToken, err := r.readIntraCommunicationToken(ctx, cr)
+	if err != nil {
+		return nil, err
+	}
+	useTLS := cr.Status.Applied.Services.Registry != nil &&
+		cr.Status.Applied.Services.Registry.Local != nil &&
+		cr.Status.Applied.Services.Registry.Local.Server != nil &&
+		cr.Status.Applied.Services.Registry.Local.Server.TLS.IsTLS()
+	return registry.ListPermissions(ctx, registryRest, project, intraCommToken, useTLS)
+}
+
+func (r *FeatureStoreReconciler) readIntraCommunicationToken(ctx context.Context, cr *feastdevv1.FeatureStore) (string, error) {
+	cmName := services.GetIntraCommunicationConfigMapName(cr.Name)
+	cm := &corev1.ConfigMap{}
+	if err := r.Get(ctx, types.NamespacedName{Name: cmName, Namespace: cr.Namespace}, cm); err != nil {
+		return "", err
+	}
+	return cm.Data["token"], nil
+}
+
+func (r *FeatureStoreReconciler) addToNamespaceRegistry(ctx context.Context, cr *feastdevv1.FeatureStore) {
+	logger := log.FromContext(ctx)
+	feast := services.FeastServices{
+		Handler: feasthandler.FeastHandler{
+			Client:       r.Client,
+			Context:      ctx,
+			FeatureStore: cr,
+			Scheme:       r.Scheme,
+		},
+	}
+	if err := feast.AddToNamespaceRegistry(); err != nil {
+		logger.Error(err, "Failed to add feature store to namespace registry")
+	}
+}
+
+func (r *FeatureStoreReconciler) addToOpenLineageDiscovery(ctx context.Context, cr *feastdevv1.FeatureStore) {
+	logger := log.FromContext(ctx)
+	feast := services.FeastServices{
+		Handler: feasthandler.FeastHandler{
+			Client:       r.Client,
+			Context:      ctx,
+			FeatureStore: cr,
+			Scheme:       r.Scheme,
+		},
+	}
+	if err := feast.AddToOpenLineageDiscovery(); err != nil {
+		logger.Error(err, "Failed to add feature store to OpenLineage discovery")
+	}
+}
+
+func (r *FeatureStoreReconciler) cleanupOnDeletion(ctx context.Context, namespace, name string) {
+	logger := log.FromContext(ctx)
+	otherCount := r.countOtherFeatureStoresInNamespace(ctx, namespace, name)
+	if err := access.RemoveNamespaceLabelIfLast(ctx, r.Client, namespace, otherCount); err != nil {
+		logger.Error(err, "Failed to remove Feast label from namespace")
+	}
+	if err := access.CleanupAutoAccessRBAC(ctx, r.Client, namespace, name); err != nil {
+		logger.Error(err, "Failed to cleanup auto-access RBAC")
+	}
+	clusterCount := r.countOtherFeatureStoresInCluster(ctx, namespace, name)
+	if err := access.CleanupDiscoverClusterRoleIfLast(ctx, r.Client, clusterCount); err != nil {
+		logger.Error(err, "Failed to cleanup discover ClusterRole")
+	}
+	deletedCR := &feastdevv1.FeatureStore{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+	}
+	r.cleanupNamespaceRegistry(ctx, deletedCR)
+	if err := r.cleanupOpenLineageDiscovery(ctx, deletedCR); err != nil {
+		logger.Error(err, "Failed to clean up OpenLineage discovery entry")
+	}
+}
+
+func (r *FeatureStoreReconciler) cleanupNamespaceRegistry(ctx context.Context, cr *feastdevv1.FeatureStore) {
+	logger := log.FromContext(ctx)
+	feast := services.FeastServices{
+		Handler: feasthandler.FeastHandler{
+			Client:       r.Client,
+			Context:      ctx,
+			FeatureStore: cr,
+			Scheme:       r.Scheme,
+		},
+	}
+	if err := feast.RemoveFromNamespaceRegistry(); err != nil {
+		logger.Error(err, "Failed to remove feature store from namespace registry")
+	}
+}
+
+func (r *FeatureStoreReconciler) countOtherFeatureStoresInNamespace(ctx context.Context, namespace, excludeName string) int {
+	var list feastdevv1.FeatureStoreList
+	if err := r.List(ctx, &list, client.InNamespace(namespace)); err != nil {
+		return -1
+	}
+	count := 0
+	for i := range list.Items {
+		if list.Items[i].Name != excludeName && list.Items[i].DeletionTimestamp == nil {
+			count++
+		}
+	}
+	return count
+}
+
+func (r *FeatureStoreReconciler) countOtherFeatureStoresInCluster(ctx context.Context, namespace, excludeName string) int {
+	var list feastdevv1.FeatureStoreList
+	if err := r.List(ctx, &list); err != nil {
+		return -1
+	}
+	count := 0
+	for i := range list.Items {
+		item := &list.Items[i]
+		if (item.Name != excludeName || item.Namespace != namespace) && item.DeletionTimestamp == nil {
+			count++
+		}
+	}
+	return count
 }
 
 func (r *FeatureStoreReconciler) deployFeast(ctx context.Context, cr *feastdevv1.FeatureStore) (result ctrl.Result, err error) {
@@ -316,52 +433,6 @@ func (r *FeatureStoreReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	return bldr.Complete(r)
 
-}
-
-// cleanupNamespaceRegistry removes the feature store instance from the namespace registry
-func (r *FeatureStoreReconciler) cleanupNamespaceRegistry(ctx context.Context, cr *feastdevv1.FeatureStore) error {
-	feast := services.FeastServices{
-		Handler: feasthandler.FeastHandler{
-			Client:       r.Client,
-			Context:      ctx,
-			FeatureStore: cr,
-			Scheme:       r.Scheme,
-		},
-	}
-
-	return feast.RemoveFromNamespaceRegistry()
-}
-
-// removeNamespaceLabelIfLast drops the Feast discovery label from the namespace
-// once the FeatureStore being deleted is the last one in it. On a List failure
-// the label is left in place rather than risk unlabeling a namespace that still
-// hosts other FeatureStores.
-func (r *FeatureStoreReconciler) removeNamespaceLabelIfLast(ctx context.Context, namespace, excludeName string) {
-	logger := log.FromContext(ctx)
-	otherCount, err := r.countOtherFeatureStoresInNamespace(ctx, namespace, excludeName)
-	if err != nil {
-		logger.Error(err, "Failed to count FeatureStores in namespace, keeping Feast label", "namespace", namespace)
-		return
-	}
-	if err := access.RemoveNamespaceLabelIfLast(ctx, r.Client, namespace, otherCount); err != nil {
-		logger.Error(err, "Failed to remove Feast label from namespace", "namespace", namespace)
-	}
-}
-
-// countOtherFeatureStoresInNamespace counts the FeatureStores in the namespace
-// other than excludeName, ignoring any that are themselves being deleted.
-func (r *FeatureStoreReconciler) countOtherFeatureStoresInNamespace(ctx context.Context, namespace, excludeName string) (int, error) {
-	var list feastdevv1.FeatureStoreList
-	if err := r.List(ctx, &list, client.InNamespace(namespace)); err != nil {
-		return 0, err
-	}
-	count := 0
-	for i := range list.Items {
-		if list.Items[i].Name != excludeName && list.Items[i].DeletionTimestamp == nil {
-			count++
-		}
-	}
-	return count, nil
 }
 
 // mlflowStatusChangedPredicate triggers the mapper only when the MLflow CR's
