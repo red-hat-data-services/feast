@@ -453,8 +453,9 @@ pandas==3.0.5 \
     #   pandas-gbq
     #   pymilvus
     #   snowflake-connector-python
-pandas-gbq==0.35.1 \
-    --hash=sha256:24ee31f51c7af273c06a77018c5a922e69e177d10abf70911356d2abefc0301b \
+pandas-gbq==0.35.2 \
+    --hash=sha256:3613f203e0ad9cbe38709fcb9b4c2c9af1fdb46bed333219b34a639142850806 \
+    --hash=sha256:b74187ec91b25ca4818b14343f7a765a7ee8f7b3ed7e8d1e428e9e8a2094b0e8
     # via google-cloud-bigquery
 parsy==2.2 \
     --hash=sha256:679a3e1cb05e5bec7832d7180c6ebecfecccf350eaeb86bdcdb14c979c46e25d \
