@@ -1,0 +1,51 @@
+packages:
+  - git
+  - libicu
+  - libpq
+  - python3.12-devel
+  - postgresql-devel
+  - gcc
+  - openblas-devel
+
+arches:
+  - x86_64
+  - aarch64
+  - ppc64le
+
+context:
+  containerfile:
+    file: ../../../../../../../Dockerfiles/Dockerfile.feature-server.konflux
+    stageNum: 1
+
+contentOrigin:
+  repos:
+    - repoid: ubi-9-baseos-rpms
+      baseurl: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/$basearch/baseos/os
+      varsFromContainerfile:
+        file: ../../../../../../../Dockerfiles/Dockerfile.feature-server.konflux
+        stageNum: 1
+    - repoid: ubi-9-baseos-source-rpms
+      baseurl: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/$basearch/baseos/source/SRPMS
+      varsFromContainerfile:
+        file: ../../../../../../../Dockerfiles/Dockerfile.feature-server.konflux
+        stageNum: 1
+    - repoid: ubi-9-appstream-rpms
+      baseurl: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/$basearch/appstream/os
+      varsFromContainerfile:
+        file: ../../../../../../../Dockerfiles/Dockerfile.feature-server.konflux
+        stageNum: 1
+    - repoid: ubi-9-appstream-source-rpms
+      baseurl: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/$basearch/appstream/source/SRPMS
+      varsFromContainerfile:
+        file: ../../../../../../../Dockerfiles/Dockerfile.feature-server.konflux
+        stageNum: 1
+    - repoid: ubi-9-codeready-builder-rpms
+      baseurl: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/$basearch/codeready-builder/os
+      varsFromContainerfile:
+        file: ../../../../../../../Dockerfiles/Dockerfile.feature-server.konflux
+        stageNum: 1
+    - repoid: ubi-9-codeready-builder-source-rpms
+      baseurl: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/$basearch/codeready-builder/source/SRPMS
+      varsFromContainerfile:
+        file: ../../../../../../../Dockerfiles/Dockerfile.feature-server.konflux
+        stageNum: 1
