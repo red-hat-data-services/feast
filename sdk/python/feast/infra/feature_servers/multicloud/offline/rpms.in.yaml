@@ -1,0 +1,26 @@
+# Input for rpm-lockfile-prototype / MintMaker (Renovate).
+# Must sit beside rpms.lock.yaml so MintMaker can refresh the lock.
+# Packages match Dockerfiles/Dockerfile.feature-server.konflux runtime microdnf install.
+# stageNum is 1-based: 1 = builder (python-312), 2 = runtime (python-312-minimal).
+packages:
+  - git
+  - libicu
+  - libpq
+  - python3.12-devel
+  - postgresql-devel
+  - gcc
+  - openblas-devel
+
+arches:
+  - x86_64
+  - aarch64
+  - ppc64le
+
+context:
+  containerfile:
+    file: ../../../../../../../Dockerfiles/Dockerfile.feature-server.konflux
+    stageNum: 2
+
+contentOrigin:
+  repofiles:
+    - ./ubi.repo
