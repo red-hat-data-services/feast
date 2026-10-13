@@ -294,14 +294,6 @@ spec:
           - update
           - watch
         - apiGroups:
-          - config.openshift.io
-          resources:
-          - apiservers
-          verbs:
-          - get
-          - list
-          - watch
-        - apiGroups:
           - feast.dev
           resources:
           - featurestores

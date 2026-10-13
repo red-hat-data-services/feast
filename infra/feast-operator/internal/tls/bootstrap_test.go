@@ -14,18 +14,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package tls
 
 import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"testing"
 
 	configv1 "github.com/openshift/api/config/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+
+	"github.com/go-logr/logr"
 )
 
 func intermediateProfile() configv1.TLSProfileSpec {
@@ -90,11 +93,29 @@ func TestClassifyTLSProfileError(t *testing.T) {
 			wantIntermediate:   true,
 		},
 		{
-			name:               "Forbidden is fatal, returns error",
+			name:               "Forbidden falls back to Intermediate (no OpenShift RBAC)",
 			err:                apierrors.NewForbidden(schema.GroupResource{Group: "config.openshift.io", Resource: "apiservers"}, "cluster", errors.New("RBAC")),
 			wantProfileFetched: false,
-			wantError:          true,
-			wantIntermediate:   false,
+			wantError:          false,
+			wantIntermediate:   true,
+		},
+		{
+			name: "Wrapped Forbidden (from FetchAPIServerTLSProfile) falls back to Intermediate",
+			err: fmt.Errorf("failed to get APIServer %q: %w",
+				"/cluster",
+				apierrors.NewForbidden(schema.GroupResource{Group: "config.openshift.io", Resource: "apiservers"}, "cluster", errors.New("RBAC"))),
+			wantProfileFetched: false,
+			wantError:          false,
+			wantIntermediate:   true,
+		},
+		{
+			name: "Wrapped NotFound falls back to Intermediate",
+			err: fmt.Errorf("failed to get APIServer %q: %w",
+				"/cluster",
+				apierrors.NewNotFound(schema.GroupResource{Group: "config.openshift.io", Resource: "apiservers"}, "cluster")),
+			wantProfileFetched: false,
+			wantError:          false,
+			wantIntermediate:   true,
 		},
 		{
 			name:               "Unauthorized is fatal, returns error",
@@ -206,7 +227,7 @@ func TestTLSConfigFromIntermediateProfile(t *testing.T) {
 
 func configv1ToTLSConfig(profile configv1.TLSProfileSpec) func(*tls.Config) {
 	// Thin wrapper to test the actual conversion without importing tlspkg in tests.
-	// tlspkg.NewTLSConfigFromProfile is what main.go uses.
+	// tlspkg.NewTLSConfigFromProfile is what Bootstrap uses.
 	var minVersion uint16
 	switch profile.MinTLSVersion {
 	case configv1.VersionTLS10:
@@ -285,7 +306,6 @@ func TestClassifyTLSProfileError_NonTransientErrorsDoNotSetProfileFetched(t *tes
 
 func TestClassifyTLSProfileError_FatalErrorsReturnError(t *testing.T) {
 	fatalErrors := []error{
-		apierrors.NewForbidden(schema.GroupResource{}, "cluster", errors.New("RBAC")),
 		apierrors.NewUnauthorized("no token"),
 		apierrors.NewInternalError(errors.New("crash")),
 		errors.New("unexpected"),
@@ -303,6 +323,7 @@ func TestClassifyTLSProfileError_IntermediateProfileAlwaysApplied(t *testing.T) 
 	allNonFatalErrors := []error{
 		&meta.NoResourceMatchError{PartialResource: schema.GroupVersionResource{Group: "config.openshift.io"}},
 		apierrors.NewNotFound(schema.GroupResource{}, "cluster"),
+		apierrors.NewForbidden(schema.GroupResource{Group: "config.openshift.io", Resource: "apiservers"}, "cluster", errors.New("RBAC")),
 		apierrors.NewServiceUnavailable("down"),
 		apierrors.NewTimeoutError("slow", 5),
 		apierrors.NewServerTimeout(schema.GroupResource{}, "GET", 5),
@@ -325,15 +346,15 @@ func TestClassifyTLSProfileError_IntermediateProfileAlwaysApplied(t *testing.T) 
 	}
 }
 
-func TestTLSBootstrapResult_NextProtosAlwaysSet(t *testing.T) {
-	// Verify that the TLSOpts from bootstrapTLS always include ALPN with h2 and http/1.1.
-	// We can't call bootstrapTLS without a real client, but we can verify the function
-	// in tls_bootstrap.go sets NextProtos.
-	result := &tlsBootstrapResult{
+func TestBootstrapResult_NextProtosAlwaysSet(t *testing.T) {
+	// Verify that Bootstrap always includes ALPN with h2 and http/1.1 in TLSOpts.
+	// We can't call Bootstrap without a real client, but we can verify the constants
+	// and that a BootstrapResult with those opts sets NextProtos correctly.
+	result := &BootstrapResult{
 		TLSOpts: make([]func(*tls.Config), 0, 2),
 	}
 	result.TLSOpts = append(result.TLSOpts, func(c *tls.Config) {
-		c.NextProtos = []string{"h2", alpnHTTP11}
+		c.NextProtos = []string{ALPNH2, ALPNHTTP11}
 	})
 
 	cfg := &tls.Config{}
@@ -341,7 +362,79 @@ func TestTLSBootstrapResult_NextProtosAlwaysSet(t *testing.T) {
 		opt(cfg)
 	}
 
-	if len(cfg.NextProtos) != 2 || cfg.NextProtos[0] != "h2" || cfg.NextProtos[1] != alpnHTTP11 {
-		t.Errorf("NextProtos = %v, want [h2, %s]", cfg.NextProtos, alpnHTTP11)
+	if len(cfg.NextProtos) != 2 || cfg.NextProtos[0] != ALPNH2 || cfg.NextProtos[1] != ALPNHTTP11 {
+		t.Errorf("NextProtos = %v, want [%s, %s]", cfg.NextProtos, ALPNH2, ALPNHTTP11)
+	}
+}
+
+func TestClassifyTLSAdherenceError(t *testing.T) {
+	logger := logr.Discard()
+
+	tests := []struct {
+		name                 string
+		err                  error
+		wantAdherenceFetched bool
+		wantError            bool
+	}{
+		{
+			name:                 "NotFound sets adherenceFetched for watcher retry",
+			err:                  apierrors.NewNotFound(schema.GroupResource{Group: "config.openshift.io", Resource: "apiservers"}, "cluster"),
+			wantAdherenceFetched: true,
+		},
+		{
+			name:                 "NoMatch sets adherenceFetched for watcher retry",
+			err:                  &meta.NoResourceMatchError{PartialResource: schema.GroupVersionResource{Group: "config.openshift.io"}},
+			wantAdherenceFetched: true,
+		},
+		{
+			name:                 "ServiceUnavailable is transient, adherenceFetched=true",
+			err:                  apierrors.NewServiceUnavailable("api server down"),
+			wantAdherenceFetched: true,
+		},
+		{
+			name:                 "InternalError is transient, adherenceFetched=true",
+			err:                  apierrors.NewInternalError(errors.New("crash")),
+			wantAdherenceFetched: true,
+		},
+		{
+			name:      "Forbidden is fatal",
+			err:       apierrors.NewForbidden(schema.GroupResource{}, "cluster", errors.New("RBAC")),
+			wantError: true,
+		},
+		{
+			name: "Wrapped NotFound sets adherenceFetched for watcher retry",
+			err: fmt.Errorf("failed to get APIServer %q: %w",
+				"/cluster",
+				apierrors.NewNotFound(schema.GroupResource{Group: "config.openshift.io", Resource: "apiservers"}, "cluster")),
+			wantAdherenceFetched: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fetched, err := classifyTLSAdherenceError(tt.err, logger)
+			if tt.wantError && err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if !tt.wantError && err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if fetched != tt.wantAdherenceFetched {
+				t.Fatalf("adherenceFetched = %v, want %v", fetched, tt.wantAdherenceFetched)
+			}
+		})
+	}
+}
+
+func TestFetchTLSAdherencePolicy_SkipsWhenProfileNotFetched(t *testing.T) {
+	policy, fetched, err := fetchTLSAdherencePolicy(context.Background(), nil, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if fetched {
+		t.Fatal("expected adherenceFetched=false when profile was not fetched")
+	}
+	if policy != "" {
+		t.Fatalf("expected empty policy, got %q", policy)
 	}
 }

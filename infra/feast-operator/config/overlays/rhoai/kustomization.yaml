@@ -3,12 +3,25 @@ kind: Kustomization
 
 namespace: redhat-ods-applications
 
-
 resources:
   - ../../default
-
+  - ../../prometheus
+  - tls_clusterrole.yaml
+  - tls_clusterrolebinding.yaml
 
 patches:
+  - path: metrics_service_patch.yaml
+    target:
+      kind: Service
+      name: controller-manager-metrics-service
+  - path: manager_patch.yaml
+    target:
+      kind: Deployment
+      name: controller-manager
+  - path: servicemonitor_patch.yaml
+    target:
+      kind: ServiceMonitor
+      name: controller-manager-metrics-monitor
   # patch to remove default `system` namespace in ../../manager/manager.yaml
   - path: delete-namespace.yaml
 
@@ -21,6 +34,32 @@ configurations:
   - params.yaml
 
 replacements:
+  - source:
+      kind: Service
+      name: controller-manager-metrics-service
+      fieldPath: metadata.name
+    targets:
+      - select:
+          kind: ServiceMonitor
+          name: controller-manager-metrics-monitor
+        fieldPaths:
+          - spec.endpoints.0.tlsConfig.serverName
+        options:
+          delimiter: "."
+          index: 0
+  - source:
+      kind: Service
+      name: controller-manager-metrics-service
+      fieldPath: metadata.namespace
+    targets:
+      - select:
+          kind: ServiceMonitor
+          name: controller-manager-metrics-monitor
+        fieldPaths:
+          - spec.endpoints.0.tlsConfig.serverName
+        options:
+          delimiter: "."
+          index: 1
   - source:
       kind: ConfigMap
       name: feast-operator-parameters
