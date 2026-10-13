@@ -39,7 +39,7 @@ RUN SETUPTOOLS_SCM_PRETEND_VERSION=$(awk -F'==' 'NR==2{gsub(/[[:space:]]/,"",$2)
     pip install --no-deps '.[minimal]'
 
 # Stage 2: Minimal runtime image (no compilers or dev headers)
-FROM registry.access.redhat.com/ubi9/python-312-minimal:latest@sha256:4e68854b17fc60be79a3bf5a2fd24288d6f0711bdf604d6de434ea591a593ed5
+FROM registry.access.redhat.com/ubi9/python-312-minimal:latest@sha256:1a6537ee64a911606c9941ec02740230edbb0344eae3d610f6f55046abf30bfb
 
 USER 0
 
