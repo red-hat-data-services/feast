@@ -1441,13 +1441,13 @@ arches:
     name: glibc-devel
     evr: 2.34-283.el9_8
     sourcerpm: glibc-2.34-283.el9_8.src.rpm
-  - url: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/ppc64le/appstream/os/Packages/k/kernel-headers-5.14.0-687.56.1.el9_8.ppc64le.rpm
+  - url: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/ppc64le/appstream/os/Packages/k/kernel-headers-5.14.0-687.57.1.el9_8.ppc64le.rpm
     repoid: ubi-9-for-ppc64le-appstream-rpms
-    size: 2962089
-    checksum: sha256:0b78c37c418b5a471d4ec7b57e4b46db8f3c60b936e82ccc82a3e73f92720332
+    size: 2963757
+    checksum: sha256:92f45cbda331f1f1a398d83ef564d02085e9e8e5274127f949129446a1e62668
     name: kernel-headers
-    evr: 5.14.0-687.56.1.el9_8
-    sourcerpm: kernel-5.14.0-687.56.1.el9_8.src.rpm
+    evr: 5.14.0-687.57.1.el9_8
+    sourcerpm: kernel-5.14.0-687.57.1.el9_8.src.rpm
   - url: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/ppc64le/appstream/os/Packages/l/libasan-11.5.0-14.el9.ppc64le.rpm
     repoid: ubi-9-for-ppc64le-appstream-rpms
     size: 440756
@@ -2863,13 +2863,13 @@ arches:
     name: glibc-headers
     evr: 2.34-283.el9_8
     sourcerpm: glibc-2.34-283.el9_8.src.rpm
-  - url: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/x86_64/appstream/os/Packages/k/kernel-headers-5.14.0-687.56.1.el9_8.x86_64.rpm
+  - url: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/x86_64/appstream/os/Packages/k/kernel-headers-5.14.0-687.57.1.el9_8.x86_64.rpm
     repoid: ubi-9-for-x86_64-appstream-rpms
-    size: 2977605
-    checksum: sha256:a797333dff8ff3d82f6e38107e7d9fbf78b60cd8a4d3c2582baaad91309a405c
+    size: 2979225
+    checksum: sha256:c5766b2f8e4531f824575546028de7d8eb9fa95d7246dfafd4883c58312a2ef2
     name: kernel-headers
-    evr: 5.14.0-687.56.1.el9_8
-    sourcerpm: kernel-5.14.0-687.56.1.el9_8.src.rpm
+    evr: 5.14.0-687.57.1.el9_8
+    sourcerpm: kernel-5.14.0-687.57.1.el9_8.src.rpm
   - url: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/x86_64/appstream/os/Packages/l/libmpc-1.2.1-4.el9.x86_64.rpm
     repoid: ubi-9-for-x86_64-appstream-rpms
     size: 66075
