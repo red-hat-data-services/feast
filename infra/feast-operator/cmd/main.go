@@ -140,7 +140,11 @@ func main() {
 
 	// Fetch cluster TLS profile from apiservers.config.openshift.io/cluster
 	cfg := ctrl.GetConfigOrDie()
-	bootstrapClient, err := client.New(cfg, client.Options{Scheme: scheme})
+	// Bound the bootstrap client's requests, including REST mapper discovery,
+	// which the bootstrap context does not cover.
+	bootstrapCfg := rest.CopyConfig(cfg)
+	bootstrapCfg.Timeout = 10 * time.Second
+	bootstrapClient, err := client.New(bootstrapCfg, client.Options{Scheme: scheme})
 	if err != nil {
 		setupLog.Error(err, "unable to create bootstrap client for TLS profile fetch")
 		os.Exit(1)
