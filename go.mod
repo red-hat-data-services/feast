@@ -1,8 +1,8 @@
 module github.com/feast-dev/feast
 
-go 1.23
+go 1.24
 
-toolchain go1.23.12
+toolchain go1.24.13
 
 require (
 	github.com/apache/arrow/go/v17 v17.0.0
@@ -52,7 +52,7 @@ require (
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/flatbuffers v24.3.25+incompatible // indirect
 	github.com/klauspost/asmfmt v1.3.2 // indirect
-	github.com/klauspost/compress v1.17.9 // indirect
+	github.com/klauspost/compress v1.18.7 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.8 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
