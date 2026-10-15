@@ -1,8 +1,8 @@
 module github.com/feast-dev/feast
 
-go 1.24
+go 1.23
 
-toolchain go1.24.13
+toolchain go1.23.12
 
 require (
 	github.com/apache/arrow/go/v17 v17.0.0
