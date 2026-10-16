@@ -1,0 +1,59 @@
+# AIPCC CPU base image with RHAI wheel index pre-configured
+# See: https://gitlab.com/redhat/rhel-ai/aipcc/internal-docs/-/blob/main/guides/base-images-adoption.md
+# Pin tag+digest so builds are reproducible; MintMaker/Renovate bumps the digest.
+ARG BASE_IMAGE="quay.io/aipcc/base-images/cpu-el9.8:3.6.0@sha256:7612de54903b5d0102106a7c23aead143e4e9b29383b13879e9304939f24d0ab"
+
+# Stage 1: Build feast from source
+FROM ${BASE_IMAGE} AS builder
+
+USER 0
+
+# Install dependencies from RHAI (runtime + build tools).
+# Shares the feature server lock file: feast[minimal] includes the mcp-server extra.
+COPY --chown=1001:0 sdk/python/feast/infra/feature_servers/multicloud/requirements-rhai.txt /tmp/requirements-rhai.txt
+COPY --chown=1001:0 sdk/python/feast/infra/feature_servers/multicloud/requirements.txt /tmp/feast-version.txt
+RUN pip install --no-deps -r /tmp/requirements-rhai.txt
+
+# Build feast from local source
+COPY --chown=1001:0 LICENSE pyproject.toml README.md /src/
+COPY --chown=1001:0 sdk/python /src/sdk/python
+WORKDIR /src
+
+# Build feast from source (--force-reinstall replaces RHAI wheel with local code)
+RUN SETUPTOOLS_SCM_PRETEND_VERSION=$(awk -F'==' 'NR==2{gsub(/[[:space:]]/,"",$2); print $2}' /tmp/feast-version.txt) && \
+    echo "Building feast version: ${SETUPTOOLS_SCM_PRETEND_VERSION}" && \
+    SETUPTOOLS_SCM_PRETEND_VERSION=${SETUPTOOLS_SCM_PRETEND_VERSION} \
+    pip install --no-deps --no-build-isolation --force-reinstall .
+
+# Stage 2: Runtime image
+FROM ${BASE_IMAGE}
+
+USER 0
+
+# Copy the complete virtualenv from builder
+COPY --from=builder /opt/app-root /opt/app-root
+
+# Copy non-Python assets that setuptools doesn't include
+COPY --from=builder /src/sdk/python/feast/static /opt/app-root/lib64/python3.12/site-packages/feast/static
+COPY --from=builder /src/sdk/python/feast/templates /opt/app-root/lib64/python3.12/site-packages/feast/templates
+COPY --from=builder /src/sdk/python/feast/api/registry/rest/templates /opt/app-root/lib64/python3.12/site-packages/feast/api/registry/rest/templates
+COPY --from=builder /src/sdk/python/feast/infra/utils/snowflake /opt/app-root/lib64/python3.12/site-packages/feast/infra/utils/snowflake
+
+USER 1001
+
+# Python needs a writable temp dir; under readOnlyRootFilesystem the usual
+# candidates (/tmp, /var/tmp, /usr/tmp, /) are all read-only. /dev/shm is a
+# tmpfs the kubelet mounts independently of the rootfs.
+ENV TMPDIR=/dev/shm
+
+EXPOSE 8000
+ENTRYPOINT ["feast", "mcp"]
+CMD ["--config", "/config/feast_mcp.yaml"]
+
+LABEL com.redhat.component="odh-feast-mcp" \
+    name="odh-feast-mcp-rhel9" \
+    description="odh-feast-mcp" \
+    summary="odh-feast-mcp" \
+    io.openshift.expose-services="" \
+    io.k8s.display-name="odh-feast-mcp" \
+    io.k8s.description="odh-feast-mcp"

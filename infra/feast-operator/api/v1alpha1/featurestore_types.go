@@ -305,6 +305,15 @@ type FeatureStoreServices struct {
 	RunFeastApplyOnInit *bool `json:"runFeastApplyOnInit,omitempty"`
 	// Volumes specifies the volumes to mount in the FeatureStore deployment. A corresponding `VolumeMount` should be added to whichever feast service(s) require access to said volume(s).
 	Volumes []corev1.Volume `json:"volumes,omitempty"`
+	// Tolerations are applied to the FeatureStore deployment pods, allowing them to
+	// be scheduled onto nodes with matching taints.
+	// +optional
+	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
+	// NodeSelector is a selector which must be true for the FeatureStore deployment
+	// pods to fit on a node. This selector must match a node's labels for the pod to
+	// be scheduled on that node.
+	// +optional
+	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
 }
 
 // OfflineStore configures the offline store service
@@ -337,7 +346,7 @@ var ValidOfflineStoreFilePersistenceTypes = []string{
 // OfflineStoreDBStorePersistence configures the DB store persistence for the offline store service
 type OfflineStoreDBStorePersistence struct {
 	// Type of the persistence type you want to use.
-	// +kubebuilder:validation:Enum=snowflake.offline;bigquery;redshift;spark;postgres;trino;athena;mssql;couchbase.offline;clickhouse;ray;hybrid
+	// +kubebuilder:validation:Enum=snowflake.offline;bigquery;redshift;spark;postgres;trino;athena;mssql;couchbase.offline;clickhouse;ray;hybrid;chronon
 	Type string `json:"type"`
 	// Data store parameters should be placed as-is from the "feature_store.yaml" under the secret key. "registry_type" & "type" fields should be removed.
 	SecretRef corev1.LocalObjectReference `json:"secretRef"`
@@ -358,6 +367,7 @@ var ValidOfflineStoreDBStorePersistenceTypes = []string{
 	"clickhouse",
 	"ray",
 	"hybrid",
+	"chronon",
 }
 
 // OnlineStore configures the online store service
@@ -386,7 +396,7 @@ type OnlineStoreFilePersistence struct {
 // OnlineStoreDBStorePersistence configures the DB store persistence for the online store service
 type OnlineStoreDBStorePersistence struct {
 	// Type of the persistence type you want to use.
-	// +kubebuilder:validation:Enum=snowflake.online;redis;datastore;dynamodb;bigtable;postgres;cassandra;mysql;hazelcast;singlestore;hbase;elasticsearch;qdrant;couchbase.online;milvus;hybrid;mongodb;aerospike;scylladb
+	// +kubebuilder:validation:Enum=snowflake.online;redis;datastore;dynamodb;bigtable;postgres;cassandra;mysql;hazelcast;singlestore;hbase;elasticsearch;qdrant;couchbase.online;milvus;hybrid;mongodb;aerospike;scylladb;chronon
 	Type string `json:"type"`
 	// Data store parameters should be placed as-is from the "feature_store.yaml" under the secret key. "registry_type" & "type" fields should be removed.
 	SecretRef corev1.LocalObjectReference `json:"secretRef"`
@@ -414,6 +424,7 @@ var ValidOnlineStoreDBStorePersistenceTypes = []string{
 	"mongodb",
 	"aerospike",
 	"scylladb",
+	"chronon",
 }
 
 // LocalRegistryConfig configures the registry service

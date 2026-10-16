@@ -31,6 +31,27 @@ feature_server:
     transformation_service_endpoint: "localhost:6569"
 ...
 ```
+
+### Securing the transformation service connection
+By default the Go feature server dials the transformation service over plaintext gRPC,
+since the endpoint above points at a sidecar on `localhost` and the connection never
+leaves the pod. When the transformation service runs elsewhere, enable TLS:
+
+```
+...
+feature_server:
+    type: local
+    transformation_service_endpoint: "transformations.example.svc:6569"
+    transformation_service_tls: true
+    transformation_service_cert: "/etc/pki/tls/certs/service-ca.crt"
+...
+```
+
+| Key | Default | Description |
+|:---|:---|:---|
+| `transformation_service_tls` | `false` | Dial the transformation service over TLS instead of plaintext. |
+| `transformation_service_cert` | unset | Path to a PEM CA bundle trusted *in addition to* the system roots. Only used when `transformation_service_tls` is `true`. Set this when the service presents a certificate signed by a service CA or a self-signed certificate; leave it unset to verify against the host trust store alone. |
+
 ## Supported APIs
 Here is the list of supported APIs:
 | Method | API | Comment |

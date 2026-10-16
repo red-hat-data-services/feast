@@ -6,6 +6,7 @@ namespace: opendatahub
 
 resources:
   - ../../default
+  - ../openshift
 
 
 patches:

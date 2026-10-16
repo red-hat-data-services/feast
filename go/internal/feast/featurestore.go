@@ -69,7 +69,10 @@ func NewFeatureStore(config *registry.RepoConfig, callback transformation.Transf
 		// Use a scalable transformation service like Python Transformation Service.
 		// Assume the user will define the "transformation_service_endpoint" in the feature_store.yaml file
 		// under the "feature_server" section.
-		transformationService, _ = transformation.NewGrpcTransformationService(config, transformationServerEndpoint.(string))
+		transformationService, err = transformation.NewGrpcTransformationService(config, transformationServerEndpoint.(string))
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &FeatureStore{

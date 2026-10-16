@@ -1,5 +1,5 @@
 # Build the manager binary
-FROM registry.access.redhat.com/ubi9/go-toolset:1.25 AS builder
+FROM registry.access.redhat.com/ubi9/go-toolset:1.26 AS builder
 ARG TARGETOS
 ARG TARGETARCH
 ENV GOTOOLCHAIN=auto
@@ -14,7 +14,7 @@ RUN go mod download
 # Copy the go source
 COPY --chown=1001:0 cmd/ cmd/
 COPY --chown=1001:0 api/ api/
-COPY --chown=1001:0 internal/controller/ internal/controller/
+COPY --chown=1001:0 internal/ internal/
 
 # Build
 # the GOARCH has not a default value to allow the binary be built according to the host where the command
