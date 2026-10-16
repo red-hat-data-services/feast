@@ -23,7 +23,7 @@ RUN if [ "$(uname -m)" = "ppc64le" ]; then \
 # from IBM Power index and duckdb, pyarrow from source; strip them from the
 # locked list so pip does not install a different version.
 RUN if [ "$(uname -m)" = "ppc64le" ]; then \
-        grep -iv '^pyarrow\|^duckdb\|^grpcio\|^milvus-lite\|^pandas\|^numpy' /tmp/requirements.txt > /tmp/requirements-filtered.txt && \
+        grep -iv '^pyarrow==\|^duckdb==\|^grpcio==\|^milvus-lite==\|^pandas==\|^numpy==' /tmp/requirements.txt > /tmp/requirements-filtered.txt && \
         pip install --no-deps -r /tmp/requirements-filtered.txt; \
     else \
         pip install --no-deps -r /tmp/requirements.txt; \

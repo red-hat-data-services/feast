@@ -32,10 +32,8 @@ python3.12 -m pip install \
 #######################################################
 
 echo "Installing build tools for source builds..."
-dnf install -y gcc-toolset-13 make cmake ninja-build libomp-devel \
+dnf install -y gcc gcc-c++ make cmake ninja-build libomp-devel \
                git python3.12-devel openssl openssl-devel zlib-devel libuuid-devel
-source /opt/rh/gcc-toolset-13/enable
-export CXX=/opt/rh/gcc-toolset-13/root/usr/bin/g++
 
 # Pin Cython < 3.1 — PyArrow 17.0.0 has a nogil/GIL incompatibility
 # with Cython ≥ 3.1 (ARROW-43552: table.pxi:6105).
@@ -63,6 +61,7 @@ cmake -DCMAKE_BUILD_TYPE=Release \
       -DARROW_PARQUET=ON \
       -DARROW_ORC=ON \
       -DARROW_FILESYSTEM=ON \
+      -DARROW_FLIGHT=ON \
       -DARROW_WITH_LZ4=ON \
       -DARROW_WITH_ZSTD=ON \
       -DARROW_WITH_SNAPPY=ON \
