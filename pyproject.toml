@@ -44,7 +44,8 @@ dependencies = [
     "psutil",
     "bigtree>=0.19.2",
     "pyasn1>=0.6.4",
-    "pyjwt>=2.13.0",
+    "pyjwt>=2.14.0",
+    "urllib3>=2.8.0,<3",
     "aiohttp>=3.14.3",
 ]
 
@@ -173,7 +174,7 @@ ci = [
     "pyasn1>=0.6.4",
     "moto<5",
     "mypy>=1.4.1,<1.11.3",
-    "urllib3>=2.6.3,<3",
+    "urllib3>=2.8.0,<3",
     "psutil==5.9.0",
     "pytest-cov",
     "Sphinx>4.0.0,<7",
