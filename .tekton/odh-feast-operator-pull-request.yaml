@@ -28,10 +28,6 @@ spec:
     value: Dockerfiles/Dockerfile.feast-operator.konflux
   - name: path-context
     value: .
-  - name: image-expires-after
-    value: 5d
-  - name: enable-slack-failure-notification
-    value: "false"
   - name: hermetic
     value: true
   - name: prefetch-input
