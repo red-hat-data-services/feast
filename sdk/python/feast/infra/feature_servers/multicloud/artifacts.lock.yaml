@@ -1,9 +1,0 @@
-metadata:
-  version: "1.0"
-
-artifacts: []
-
-# NOTE:
-# Hermeto/Cachi2 must NOT fetch non-RH artifacts (e.g., GitHub tarballs).
-# DuckDB and Apache Arrow are now built via git clone.
-
