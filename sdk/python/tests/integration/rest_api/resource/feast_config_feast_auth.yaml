@@ -1,0 +1,51 @@
+apiVersion: feast.dev/v1
+kind: FeatureStore
+metadata:
+  name: feast-auth
+  namespace: test-ns-feast-rest
+spec:
+  feastProject: feast_auth_project
+  authz:
+    kubernetes:
+      roles:
+        - feast-writer
+        - feast-reader
+  feastProjectDir:
+    git:
+      url: https://github.com/feast-dev/feast-credit-score-local-tutorial.git
+      ref: 5dbd21c
+  services:
+    offlineStore:
+      persistence:
+        file:
+          type: duckdb
+    onlineStore:
+      persistence:
+        store:
+          type: redis
+          secretRef:
+            name: feast-data-stores
+      server:
+        envFrom:
+          - secretRef:
+              name: postgres-secret
+        env:
+          - name: MPLCONFIGDIR
+            value: /tmp
+        resources:
+          requests:
+            cpu: 150m
+            memory: 128Mi
+    registry:
+      local:
+        persistence:
+          store:
+            type: sql
+            secretRef:
+              name: feast-data-stores
+        server:
+          envFrom:
+            - secretRef:
+                name: postgres-secret
+          grpc: true
+          restAPI: true

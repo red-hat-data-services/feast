@@ -115,3 +115,83 @@ func (feast *FeastServices) buildServiceMonitorApplyConfig() *monitoringv1apply.
 			),
 		)
 }
+
+// ---------------------------------------------------------------------------
+// Data Registry ServiceMonitor
+// ---------------------------------------------------------------------------
+
+// createOrDeleteDataRegistryServiceMonitor reconciles the ServiceMonitor for the
+// data-registry Prometheus metrics endpoint (:8000/metrics). No-op when the
+// Prometheus Operator CRD is absent.
+func (feast *FeastServices) createOrDeleteDataRegistryServiceMonitor() error {
+	if !hasServiceMonitorCRD {
+		return nil
+	}
+	if feast.isDataRegistryEnabled() {
+		return feast.applyDataRegistryServiceMonitor()
+	}
+	return feast.deleteDataRegistryServiceMonitor()
+}
+
+func (feast *FeastServices) applyDataRegistryServiceMonitor() error {
+	smApply := feast.buildDataRegistryServiceMonitorApplyConfig()
+	data, err := json.Marshal(smApply)
+	if err != nil {
+		return err
+	}
+
+	sm := feast.initDataRegistryServiceMonitor()
+	logger := log.FromContext(feast.Handler.Context)
+	if err := feast.Handler.Client.Patch(feast.Handler.Context, sm,
+		client.RawPatch(types.ApplyPatchType, data),
+		client.FieldOwner(fieldManager), client.ForceOwnership); err != nil {
+		return err
+	}
+	logger.Info("Successfully applied", "ServiceMonitor", sm.GetName())
+	return nil
+}
+
+func (feast *FeastServices) deleteDataRegistryServiceMonitor() error {
+	sm := feast.initDataRegistryServiceMonitor()
+	return feast.Handler.DeleteOwnedFeastObj(sm)
+}
+
+func (feast *FeastServices) initDataRegistryServiceMonitor() *unstructured.Unstructured {
+	sm := &unstructured.Unstructured{}
+	sm.SetGroupVersionKind(serviceMonitorGVK)
+	sm.SetName(feast.GetFeastServiceName(DataRegistryFeastType))
+	sm.SetNamespace(feast.Handler.FeatureStore.Namespace)
+	return sm
+}
+
+// buildDataRegistryServiceMonitorApplyConfig constructs the desired ServiceMonitor
+// for the data-registry metrics port, matching the online-store ServiceMonitor pattern.
+func (feast *FeastServices) buildDataRegistryServiceMonitorApplyConfig() *monitoringv1apply.ServiceMonitorApplyConfiguration {
+	cr := feast.Handler.FeatureStore
+	objMeta := feast.GetObjectMetaType(DataRegistryFeastType)
+
+	return monitoringv1apply.ServiceMonitor(objMeta.Name, objMeta.Namespace).
+		WithLabels(feast.getFeastTypeLabels(DataRegistryFeastType)).
+		WithOwnerReferences(
+			metav1apply.OwnerReference().
+				WithAPIVersion(feastdevv1.GroupVersion.String()).
+				WithKind("FeatureStore").
+				WithName(cr.Name).
+				WithUID(cr.UID).
+				WithController(true).
+				WithBlockOwnerDeletion(true),
+		).
+		WithSpec(monitoringv1apply.ServiceMonitorSpec().
+			WithEndpoints(
+				monitoringv1apply.Endpoint().
+					WithPort(metricsPortName).
+					WithPath("/metrics"),
+			).
+			WithSelector(metav1apply.LabelSelector().
+				WithMatchLabels(map[string]string{
+					NameLabelKey:        cr.Name,
+					ServiceTypeLabelKey: string(DataRegistryFeastType),
+				}),
+			),
+		)
+}

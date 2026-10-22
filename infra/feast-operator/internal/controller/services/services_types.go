@@ -26,6 +26,7 @@ import (
 
 const (
 	TmpFeatureStoreYamlEnvVar      = "TMP_FEATURE_STORE_YAML_BASE64"
+	FeatureStoreYamlEnvVar         = "FEATURE_STORE_YAML_BASE64"
 	IntraCommunicationBase64EnvVar = "INTRA_COMMUNICATION_BASE64"
 	intraCommunicationTokenKey     = "token"
 	packagedFeatureRepoEnvVar      = "FEAST_PACKAGED_FEATURE_REPO_PATH"
@@ -58,6 +59,83 @@ const (
 	// shared registry on startup.
 	ProtectedProjectAnnotation = "feast.dev/protected-project"
 
+	// DataRegistryAnnotation is the annotation key on a FeatureStore CR that
+	// enables Data Registry reconciliation. When set to "true",
+	// the operator switches to an exclusive data-registry mode: standard
+	// online/offline store resources are removed and a single registry-only
+	// Deployment with a kube-rbac-proxy sidecar is deployed instead.
+	DataRegistryAnnotation = "dataregistry.opendatahub.io/enabled"
+
+	// Data Registry env var names injected into the data-registry-server container.
+	DataRegistryEnabledEnvVar      = "DATA_REGISTRY_ENABLED"
+	DataRegistrySARApiGroupEnvVar  = "DATA_REGISTRY_SAR_API_GROUP"
+	DataRegistrySARResourcesEnvVar = "DATA_REGISTRY_SAR_RESOURCES"
+	FeastProjectEnvVar             = "FEAST_PROJECT"
+
+	DataRegistryContainerName       = "data-registry-server"
+	DataRegistryPort          int32 = 6572
+	DataRegistryLocalhostAddr       = "127.0.0.1"
+
+	// kube-rbac-proxy sidecar for Data Registry authentication enforcement.
+	// RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE is the platform-shared related
+	// image env var present in the ODH CSV, manager.yaml, and params.env overlays,
+	// so disconnected installs inject the mirrored digest. Standalone installs
+	// fall back to DefaultKubeRBACProxyImage when the env var is unset.
+	kubeRBACProxyImageVar                = "RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE"
+	DataRegistryProxyContainerName       = "kube-rbac-proxy"
+	DataRegistryProxyPort          int32 = 8443
+	dataRegistryAuthConfigSuffix         = "-data-registry-auth"
+	dataRegistryTlsSecretSuffix          = "-data-registry-tls"
+
+	dataRegistryAuthDelegatorSuffix = "-data-registry-auth-delegator"
+	dataRegistryOwnerUIDLabelKey    = "feast.dev/featurestore-uid"
+	dataRegistryCaBundleSuffix      = "-data-registry-ca-bundle"
+
+	dataRegistryAPIGroup = "dataregistry.opendatahub.io"
+
+	// Fixed ClusterRole names for the data-registry aggregated RBAC.
+	// Names are CR-independent because data-registry is a cluster singleton:
+	// only one FeatureStore may have the data-registry annotation at a time.
+	// Using fixed names avoids dynamic resourceNames in the operator ClusterRole
+	// and prevents Forbidden errors when the OLM-installed operator tries to
+	// get/update/delete a ClusterRole whose name was not pre-listed.
+	DataRegistryViewerClusterRoleName = "feast-data-registry-viewer"
+	DataRegistryEditorClusterRoleName = "feast-data-registry-editor"
+	DataRegistryAdminClusterRoleName  = "feast-data-registry-admin"
+
+	// DataRegistryProject is the fixed Feast project name used in
+	// data-registry mode (Phase-1 single-project storage model).
+	DataRegistryProject = "data_registry"
+
+	// DataRegistryNamespaceLabel is the label that must be present on a
+	// namespace for the operator to allow a data-registry CR in it.
+	// This is a secondary guard; the primary enforcement is the exact namespace
+	// name match (always rhoai-data-registry). Custom namespace selection is deferred.
+	DataRegistryNamespaceLabel = "opendatahub.io/data-registry"
+	// DataRegistryPlatformNamespaceLabel is applied by feast-module-operator on rhoai-data-registry.
+	DataRegistryPlatformNamespaceLabel = "dataregistry.opendatahub.io/enabled"
+
+	// DataRegistryFinalizer is added to the FeatureStore CR when the data-registry
+	// annotation is enabled. It prevents the CR from being garbage-collected before
+	// the operator can clean up cluster-scoped resources (ClusterRoles, CRBs)
+	// that do not carry owner references and would otherwise be orphaned.
+	DataRegistryFinalizer = "dataregistry.opendatahub.io/cleanup"
+
+	// DefaultKubeRBACProxyImage is the fallback when RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE
+	// is unset (standalone make deploy). ODH/RHOAI installs inject the related image via OLM.
+	// Requires opendatahub-io/kube-rbac-proxy with Format2 endpoint rules (PR #28, v3.6.0-ea.2+).
+	DefaultKubeRBACProxyImage = "quay.io/opendatahub/odh-kube-rbac-proxy@sha256:acd9de62b8339dbacd39635317e5e596e09a70ae26ac9eccdde4a4124388740f"
+
+	DefaultKubeRBACProxyCPURequest    = "50m"
+	DefaultKubeRBACProxyCPULimit      = "100m"
+	DefaultKubeRBACProxyMemoryRequest = "128Mi"
+	DefaultKubeRBACProxyMemoryLimit   = "256Mi"
+
+	DefaultDataRegistryCPURequest    = "100m"
+	DefaultDataRegistryCPULimit      = "500m"
+	DefaultDataRegistryMemoryRequest = "256Mi"
+	DefaultDataRegistryMemoryLimit   = "512Mi"
+
 	HttpPort              = 80
 	HttpsPort             = 443
 	HttpScheme            = "http"
@@ -83,15 +161,17 @@ const (
 	DefaultRegistryStorageRequest       = "5Gi"
 	MetricsPort                   int32 = 8000
 
-	AuthzFeastType    FeastServiceType = "authorization"
-	OfflineFeastType  FeastServiceType = "offline"
-	OnlineFeastType   FeastServiceType = "online"
-	RegistryFeastType FeastServiceType = "registry"
-	UIFeastType       FeastServiceType = "ui"
-	LineageFeastType  FeastServiceType = "lineage"
-	ClientFeastType   FeastServiceType = "client"
-	ClientCaFeastType FeastServiceType = "client-ca"
-	CronJobFeastType  FeastServiceType = "cronjob"
+	AuthzFeastType        FeastServiceType = "authorization"
+	OfflineFeastType      FeastServiceType = "offline"
+	OnlineFeastType       FeastServiceType = "online"
+	RegistryFeastType     FeastServiceType = "registry"
+	UIFeastType           FeastServiceType = "ui"
+	LineageFeastType      FeastServiceType = "lineage"
+	McpServerFeastType    FeastServiceType = "mcpserver"
+	ClientFeastType       FeastServiceType = "client"
+	ClientCaFeastType     FeastServiceType = "client-ca"
+	CronJobFeastType      FeastServiceType = "cronjob"
+	DataRegistryFeastType FeastServiceType = "data-registry"
 
 	OfflineRemoteConfigType                 OfflineConfigType = "remote"
 	OfflineFilePersistenceDaskConfigType    OfflineConfigType = "dask"
@@ -134,6 +214,8 @@ const (
 	stringTrue              = "true"
 	stringFalse             = "false"
 	hostAllIPv4             = "0.0.0.0"
+	hostAllIPv6             = "::"
+	hostAllIPv6Bracketed    = "[::]"
 	tlsCertKey              = "tls.crt"
 	DefaultNs               = "default"
 	feastCommand            = "feast"
@@ -141,6 +223,12 @@ const (
 	registryName            = "registry"
 	feastInitContainerName  = "feast-init"
 	feastApplyContainerName = "feast-apply"
+
+	// MCP server (standalone `feast mcp`) constants
+	mcpServerConfigVolumeName = "mcp-server-config"
+	mcpServerConfigMountPath  = "/etc/feast/mcp"
+	mcpServerConfigDefaultKey = "feast_mcp.yaml"
+	mcpServerTransportEnvVar  = "FEAST_MCP_TRANSPORT"
 
 	// Test-specific constants
 	dataOnlineDbPath              = "/data/online.db"
@@ -179,10 +267,15 @@ const (
 
 var (
 	DefaultImage          = "quay.io/feastdev/feature-server:" + feastversion.FeastVersion
-	DefaultCronJobImage   = "quay.io/openshift/origin-cli:4.17"
+	DefaultCronJobImage   = "registry.k8s.io/kubectl:v1.35.9"
 	DefaultPVCAccessModes = []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}
 	NameLabelKey          = feastdevv1.GroupVersion.Group + "/name"
 	ServiceTypeLabelKey   = feastdevv1.GroupVersion.Group + "/service-type"
+
+	// dataRegistryPseudoResources are Data Registry pseudo-resources granted on the
+	// aggregated ClusterRoles. kube-rbac-proxy's coarse gate uses `registries`;
+	// the rest are consumed by server-side SAR (namespaces/tables/volumes).
+	dataRegistryPseudoResources = []string{"registries", "namespaces", "tables", "volumes", "generic-tables"}
 
 	FeastServiceConstants = map[FeastServiceType]deploymentSettings{
 		OfflineFeastType: {
@@ -203,14 +296,24 @@ var (
 			TargetRestHttpsPort: 6573,
 		},
 		UIFeastType: {
-			Args:            []string{"ui", "-h", "0.0.0.0"},
+			Args:            []string{"ui", "-h", hostAllIPv4},
 			TargetHttpPort:  8888,
 			TargetHttpsPort: 8443,
 		},
 		LineageFeastType: {
-			Args:            []string{"serve_lineage", "-h", "0.0.0.0"},
+			Args:            []string{"serve_lineage", "-h", hostAllIPv4},
 			TargetHttpPort:  6580,
 			TargetHttpsPort: 6581,
+		},
+		McpServerFeastType: {
+			Args:            []string{"mcp"},
+			TargetHttpPort:  8100,
+			TargetHttpsPort: 8101,
+		},
+		DataRegistryFeastType: {
+			Args:               []string{"serve_registry", "--rest-api"},
+			TargetHttpPort:     DataRegistryPort,
+			TargetRestHttpPort: DataRegistryPort,
 		},
 	}
 
@@ -280,6 +383,19 @@ var (
 				Reason: feastdevv1.LineageFailedReason,
 			},
 		},
+		McpServerFeastType: {
+			metav1.ConditionTrue: {
+				Type:    feastdevv1.McpServerReadyType,
+				Status:  metav1.ConditionTrue,
+				Reason:  feastdevv1.ReadyReason,
+				Message: feastdevv1.McpServerReadyMessage,
+			},
+			metav1.ConditionFalse: {
+				Type:   feastdevv1.McpServerReadyType,
+				Status: metav1.ConditionFalse,
+				Reason: feastdevv1.McpServerFailedReason,
+			},
+		},
 		ClientFeastType: {
 			metav1.ConditionTrue: {
 				Type:    feastdevv1.ClientReadyType,
@@ -304,6 +420,19 @@ var (
 				Type:   feastdevv1.CronJobReadyType,
 				Status: metav1.ConditionFalse,
 				Reason: feastdevv1.CronJobFailedReason,
+			},
+		},
+		DataRegistryFeastType: {
+			metav1.ConditionTrue: {
+				Type:    feastdevv1.DataRegistryReadyType,
+				Status:  metav1.ConditionTrue,
+				Reason:  feastdevv1.ReadyReason,
+				Message: feastdevv1.DataRegistryReadyMessage,
+			},
+			metav1.ConditionFalse: {
+				Type:   feastdevv1.DataRegistryReadyType,
+				Status: metav1.ConditionFalse,
+				Reason: feastdevv1.DataRegistryFailedReason,
 			},
 		},
 	}

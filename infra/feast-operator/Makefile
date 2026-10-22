@@ -3,7 +3,7 @@
 # To re-generate a bundle for another specific version without changing the standard setup, you can:
 # - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
-VERSION ?= 0.66.0
+VERSION ?= 0.67.0
 
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
@@ -54,7 +54,8 @@ OPERATOR_SDK_VERSION ?= v1.41.0
 # the dev image generated using command `make build-feature-server-dev-docker`
 IMG ?= $(IMAGE_TAG_BASE):$(VERSION)
 FS_IMG ?= quay.io/feastdev/feature-server:$(VERSION)
-CJ_IMG ?= quay.io/openshift/origin-cli:4.17
+CJ_IMG ?= registry.k8s.io/kubectl:v1.35.9
+KRBP_IMG ?= quay.io/opendatahub/odh-kube-rbac-proxy@sha256:acd9de62b8339dbacd39635317e5e596e09a70ae26ac9eccdde4a4124388740f
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.31.0
 
@@ -117,6 +118,11 @@ vet: ## Run go vet against code.
 .PHONY: test
 test: build-installer vet lint envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" GOTOOLCHAIN=go$(shell go env GOVERSION | sed 's/^go//') go test $$(go list ./... | grep -v test/e2e | grep -v test/data-source-types | grep -v test/upgrade | grep -v test/previous-version) -coverprofile cover.out
+
+.PHONY: setup-test
+setup-test: envtest ## Download envtest binaries (etcd, kube-apiserver) required by unit tests.
+	$(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN)
+	@echo "envtest binaries installed. Run 'make test' to execute tests."
 
 # Utilize Kind or modify the e2e tests to load the image locally, enabling compatibility with other vendors.
 .PHONY: test-e2e  # Run the e2e tests against a Kind k8s instance that is spun up.
@@ -372,4 +378,4 @@ catalog-push: ## Push a catalog image.
 
 .PHONY: related-image-fs
 related-image-fs: envsubst
-	FS_IMG=$(FS_IMG) CJ_IMG=$(CJ_IMG) $(ENVSUBST) < config/default/related_image_fs_patch.tmpl > config/default/related_image_fs_patch.yaml
+	FS_IMG=$(FS_IMG) CJ_IMG=$(CJ_IMG) KRBP_IMG=$(KRBP_IMG) $(ENVSUBST) < config/default/related_image_fs_patch.tmpl > config/default/related_image_fs_patch.yaml

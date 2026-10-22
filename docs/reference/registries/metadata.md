@@ -27,4 +27,6 @@ The metadata info of Feast `feature_store.yaml` is:
 | entity_key_serialization_version | N | string | |
 | feature_server | N | NA | config of feature server |
 | feature_server.transformation_service_endpoint | N | string | python transformation server endpoint for Go feature server |
+| feature_server.transformation_service_tls | N | bool | dial the transformation service over TLS (default false) |
+| feature_server.transformation_service_cert | N | string | PEM CA bundle trusted in addition to the system roots when TLS is enabled |
 

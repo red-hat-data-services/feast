@@ -17,7 +17,8 @@ jobs:
     if:
       ((github.event.action == 'labeled' && (github.event.label.name == 'approved' || github.event.label.name == 'lgtm' || github.event.label.name == 'ok-to-test')) ||
       (github.event.action != 'labeled' && (contains(github.event.pull_request.labels.*.name, 'ok-to-test') || contains(github.event.pull_request.labels.*.name, 'approved') || contains(github.event.pull_request.labels.*.name, 'lgtm')))) &&
-      github.event.pull_request.base.repo.full_name == 'feast-dev/feast'
+      (github.event.pull_request.base.repo.full_name == 'feast-dev/feast' ||
+      github.event.pull_request.base.repo.full_name == 'opendatahub-io/feast')
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -59,7 +60,7 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.25.0
+          go-version: 1.26.0
       - name: Operator Data Source types test
         run: make -C infra/feast-operator test-datasources
       - name: Minimize uv cache

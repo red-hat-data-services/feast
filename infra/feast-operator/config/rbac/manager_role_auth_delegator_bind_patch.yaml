@@ -1,0 +1,12 @@
+# controller-gen RBAC markers cannot express resourceNames containing ':'.
+- op: add
+  path: /rules/-
+  value:
+    apiGroups:
+    - rbac.authorization.k8s.io
+    resourceNames:
+    - system:auth-delegator
+    resources:
+    - clusterroles
+    verbs:
+    - bind

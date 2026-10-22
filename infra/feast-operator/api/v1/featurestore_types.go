@@ -38,36 +38,52 @@ const (
 	RegistryReadyType      = "Registry"
 	UIReadyType            = "UI"
 	LineageReadyType       = "Lineage"
+	McpServerReadyType     = "McpServer"
 	ReadyType              = "FeatureStore"
 	AuthorizationReadyType = "Authorization"
 	CronJobReadyType       = "CronJob"
+	DataRegistryReadyType  = "DataRegistry"
 
 	// Feast condition reasons:
-	ReadyReason                  = "Ready"
-	FailedReason                 = "FeatureStoreFailed"
-	DeploymentNotAvailableReason = "DeploymentNotAvailable"
-	OfflineStoreFailedReason     = "OfflineStoreDeploymentFailed"
-	OnlineStoreFailedReason      = "OnlineStoreDeploymentFailed"
-	RegistryFailedReason         = "RegistryDeploymentFailed"
-	UIFailedReason               = "UIDeploymentFailed"
-	LineageFailedReason          = "LineageDeploymentFailed"
-	ClientFailedReason           = "ClientDeploymentFailed"
-	CronJobFailedReason          = "CronJobDeploymentFailed"
-	KubernetesAuthzFailedReason  = "KubernetesAuthorizationDeploymentFailed"
-	OidcAuthzFailedReason        = "OidcAuthorizationDeploymentFailed"
+	ReadyReason                          = "Ready"
+	FailedReason                         = "FeatureStoreFailed"
+	FeatureStoreDisabledReason           = "FeatureStoreDisabled"
+	DataRegistryDisabledReason           = "DataRegistryDisabled"
+	DataRegistryNamespaceRejectedReason  = "DataRegistryNamespaceRejected"
+	DataRegistryAnnotationRequiredReason = "DataRegistryAnnotationRequired"
+	PlatformConfigMissingReason          = "PlatformConfigMissing"
+	DeploymentNotAvailableReason         = "DeploymentNotAvailable"
+	OfflineStoreFailedReason             = "OfflineStoreDeploymentFailed"
+	OnlineStoreFailedReason              = "OnlineStoreDeploymentFailed"
+	RegistryFailedReason                 = "RegistryDeploymentFailed"
+	UIFailedReason                       = "UIDeploymentFailed"
+	LineageFailedReason                  = "LineageDeploymentFailed"
+	McpServerFailedReason                = "McpServerDeploymentFailed"
+	ClientFailedReason                   = "ClientDeploymentFailed"
+	CronJobFailedReason                  = "CronJobDeploymentFailed"
+	DataRegistryFailedReason             = "DataRegistryDeploymentFailed"
+	KubernetesAuthzFailedReason          = "KubernetesAuthorizationDeploymentFailed"
+	OidcAuthzFailedReason                = "OidcAuthorizationDeploymentFailed"
 
 	// Feast condition messages:
-	ReadyMessage                  = "FeatureStore installation complete"
-	OfflineStoreReadyMessage      = "Offline Store installation complete"
-	OnlineStoreReadyMessage       = "Online Store installation complete"
-	RegistryReadyMessage          = "Registry installation complete"
-	UIReadyMessage                = "UI installation complete"
-	LineageReadyMessage           = "Lineage server installation complete"
-	ClientReadyMessage            = "Client installation complete"
-	CronJobReadyMessage           = "CronJob installation complete"
-	KubernetesAuthzReadyMessage   = "Kubernetes authorization installation complete"
-	OidcAuthzReadyMessage         = "OIDC authorization installation complete"
-	DeploymentNotAvailableMessage = "Deployment is not available"
+	ReadyMessage                          = "FeatureStore installation complete"
+	FeatureStoreDisabledMessage           = "Feature Store capability is disabled in the platform configuration (feast-capabilities-config featureStoreEnabled=false)"
+	DataRegistryDisabledMessage           = "Data Registry capability is disabled in the platform configuration (feast-capabilities-config dataRegistryEnabled=false)"
+	DataRegistryNamespaceRejectedMessage  = "Data Registry instances are only permitted in namespace '%s', but this FeatureStore is in namespace '%s'"
+	DataRegistryAnnotationRequiredMessage = "FeatureStore instances in the Data Registry namespace require annotation dataregistry.opendatahub.io/enabled=true"
+	PlatformConfigMissingMessage          = "feast-capabilities-config ConfigMap is required but not found in namespace %s. Waiting for the module operator to create it."
+	OfflineStoreReadyMessage              = "Offline Store installation complete"
+	OnlineStoreReadyMessage               = "Online Store installation complete"
+	RegistryReadyMessage                  = "Registry installation complete"
+	UIReadyMessage                        = "UI installation complete"
+	LineageReadyMessage                   = "Lineage server installation complete"
+	McpServerReadyMessage                 = "MCP Server installation complete"
+	ClientReadyMessage                    = "Client installation complete"
+	CronJobReadyMessage                   = "CronJob installation complete"
+	DataRegistryReadyMessage              = "Data Registry installation complete"
+	KubernetesAuthzReadyMessage           = "Kubernetes authorization installation complete"
+	OidcAuthzReadyMessage                 = "OIDC authorization installation complete"
+	DeploymentNotAvailableMessage         = "Deployment is not available"
 
 	// entity_key_serialization_version
 	SerializationVersion = 3
@@ -495,12 +511,16 @@ type JobSpec struct {
 }
 
 // FeatureStoreServices defines the desired feast services. An ephemeral onlineStore feature server is deployed by default.
+// +kubebuilder:validation:XValidation:rule="!has(self.mcpServer) || !has(self.onlineStore) || !has(self.onlineStore.disabled) || !self.onlineStore.disabled || (has(self.registry) && has(self.registry.local) && has(self.registry.local.server) && has(self.registry.local.server.restAPI) && self.registry.local.server.restAPI == true)",message="mcpServer requires at least one upstream: either onlineStore must not be disabled, or registry must have restAPI enabled."
 type FeatureStoreServices struct {
 	OfflineStore *OfflineStore `json:"offlineStore,omitempty"`
 	OnlineStore  *OnlineStore  `json:"onlineStore,omitempty"`
 	Registry     *Registry     `json:"registry,omitempty"`
 	// Creates a UI server container
-	UI                 *ServerConfigs             `json:"ui,omitempty"`
+	UI *ServerConfigs `json:"ui,omitempty"`
+	// McpServer deploys a standalone Feast MCP (Model Context Protocol) server container (`feast mcp`). It is separate from the embedded MCP of services.onlineStore.serving.mcp and services.registry.local.server.mcp.
+	// +optional
+	McpServer          *McpServerConfig           `json:"mcpServer,omitempty"`
 	DeploymentStrategy *appsv1.DeploymentStrategy `json:"deploymentStrategy,omitempty"`
 	SecurityContext    *corev1.PodSecurityContext `json:"securityContext,omitempty"`
 	// PodAnnotations are annotations to be applied to the Deployment's PodTemplate metadata.
@@ -536,6 +556,15 @@ type FeatureStoreServices struct {
 	// pod anti-affinity rule to prefer spreading pods across nodes.
 	// +optional
 	Affinity *corev1.Affinity `json:"affinity,omitempty"`
+	// Tolerations are applied to the FeatureStore deployment pods, allowing them to
+	// be scheduled onto nodes with matching taints.
+	// +optional
+	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
+	// NodeSelector is a selector which must be true for the FeatureStore deployment
+	// pods to fit on a node. This selector must match a node's labels for the pod to
+	// be scheduled on that node.
+	// +optional
+	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
 	// ResourceClaims defines which ResourceClaims must be allocated
 	// and reserved before the Pod is allowed to start. The resources
 	// will be made available to those containers which consume them
@@ -619,7 +648,7 @@ var ValidOfflineStoreFilePersistenceTypes = []string{
 // OfflineStoreDBStorePersistence configures the DB store persistence for the offline store service
 type OfflineStoreDBStorePersistence struct {
 	// Type of the persistence type you want to use.
-	// +kubebuilder:validation:Enum=snowflake.offline;bigquery;redshift;spark;postgres;trino;athena;mssql;couchbase.offline;clickhouse;ray;oracle;hybrid
+	// +kubebuilder:validation:Enum=snowflake.offline;bigquery;redshift;spark;postgres;trino;athena;mssql;couchbase.offline;clickhouse;ray;oracle;hybrid;chronon
 	Type string `json:"type"`
 	// Data store parameters should be placed as-is from the "feature_store.yaml" under the secret key. "registry_type" & "type" fields should be removed.
 	SecretRef corev1.LocalObjectReference `json:"secretRef"`
@@ -641,6 +670,7 @@ var ValidOfflineStoreDBStorePersistenceTypes = []string{
 	"ray",
 	"oracle",
 	"hybrid",
+	"chronon",
 }
 
 // OnlineStore configures the online store service
@@ -720,6 +750,35 @@ type McpConfig struct {
 	Transport *string `json:"transport,omitempty"`
 }
 
+// McpServerConfig configures a standalone Feast MCP server container (the `feast mcp` command).
+// The server proxies to the online feature server and/or REST registry server over HTTP. Its
+// transport, upstream URLs, authentication and observability are read from a feast_mcp.yaml
+// config file supplied via a ConfigMap. The operator owns the container's bind host and port
+// (used for the generated Service). The container image defaults to the shared feature-server
+// image (which already includes `feast mcp` via the `minimal` extra).
+//
+// NOTE: the following embedded ServerConfigs fields are ignored for mcpServer:
+// `tls` (operator-managed TLS is not supported yet), `metrics`, and `workerConfigs`.
+// To run multiple gunicorn workers, set `server.workers` in the feast_mcp.yaml ConfigMap.
+type McpServerConfig struct {
+	ServerConfigs `json:",inline"`
+
+	// Config references a ConfigMap holding the feast_mcp.yaml file passed to `feast mcp --config`. Its transport must be http, streamable-http or sse, because the stdio default cannot serve the Service. If omitted, the operator passes `--transport http` unless FEAST_MCP_TRANSPORT is set in env.
+	// +optional
+	Config *McpServerConfigSource `json:"config,omitempty"`
+}
+
+// McpServerConfigSource references a ConfigMap key holding the feast_mcp.yaml content.
+// +kubebuilder:validation:XValidation:rule="has(self.configMapRef.name) && size(self.configMapRef.name) > 0",message="configMapRef.name is required"
+type McpServerConfigSource struct {
+	// ConfigMapRef is a reference to a ConfigMap in the same namespace containing the MCP config.
+	ConfigMapRef corev1.LocalObjectReference `json:"configMapRef"`
+	// ConfigMapKey is the key in the ConfigMap holding the feast_mcp.yaml content.
+	// +kubebuilder:default="feast_mcp.yaml"
+	// +optional
+	ConfigMapKey string `json:"configMapKey,omitempty"`
+}
+
 // OnlineStorePersistence configures the persistence settings for the online store service
 // +kubebuilder:validation:XValidation:rule="[has(self.file), has(self.store)].exists_one(c, c)",message="One selection required between file or store."
 type OnlineStorePersistence struct {
@@ -739,7 +798,7 @@ type OnlineStoreFilePersistence struct {
 // OnlineStoreDBStorePersistence configures the DB store persistence for the online store service
 type OnlineStoreDBStorePersistence struct {
 	// Type of the persistence type you want to use.
-	// +kubebuilder:validation:Enum=snowflake.online;redis;datastore;dynamodb;bigtable;postgres;cassandra;mysql;hazelcast;singlestore;hbase;elasticsearch;qdrant;couchbase.online;milvus;hybrid;mongodb;aerospike;scylladb
+	// +kubebuilder:validation:Enum=snowflake.online;redis;datastore;dynamodb;bigtable;postgres;cassandra;mysql;hazelcast;singlestore;hbase;elasticsearch;qdrant;couchbase.online;milvus;hybrid;mongodb;aerospike;scylladb;chronon
 	Type string `json:"type"`
 	// Data store parameters should be placed as-is from the "feature_store.yaml" under the secret key. "registry_type" & "type" fields should be removed.
 	SecretRef corev1.LocalObjectReference `json:"secretRef"`
@@ -767,6 +826,7 @@ var ValidOnlineStoreDBStorePersistenceTypes = []string{
 	"mongodb",
 	"aerospike",
 	"scylladb",
+	"chronon",
 }
 
 // LocalRegistryConfig configures the registry service
@@ -888,6 +948,11 @@ type ServerConfigs struct {
 	LogLevel *string `json:"logLevel,omitempty"`
 	// Metrics exposes Prometheus-compatible metrics for the Feast server when enabled.
 	Metrics *bool `json:"metrics,omitempty"`
+	// DualStack binds the server to the IPv6 wildcard address instead of 0.0.0.0,
+	// which serves both IPv6 and IPv4 clients on Linux. Enable it on IPv6-only or dual-stack clusters.
+	// Unset or false binds 0.0.0.0 (IPv4 only) for every server that takes a host flag, including the registry's REST server.
+	// +optional
+	DualStack *bool `json:"dualStack,omitempty"`
 	// VolumeMounts defines the list of volumes that should be mounted into the feast container.
 	// This allows attaching persistent storage, config files, secrets, or other resources
 	// required by the Feast components. Ensure that each volume mount has a corresponding
@@ -1123,6 +1188,7 @@ type ServiceHostnames struct {
 	RegistryRest string `json:"registryRest,omitempty"`
 	UI           string `json:"ui,omitempty"`
 	Lineage      string `json:"lineage,omitempty"`
+	McpServer    string `json:"mcpServer,omitempty"`
 }
 
 // +kubebuilder:object:root=true

@@ -1,0 +1,72 @@
+# ServiceAccounts for integration testing
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: feast-test-admin
+  namespace: test-ns-feast-rest
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: feast-test-viewer
+  namespace: test-ns-feast-rest
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: feast-test-unauthorized
+  namespace: test-ns-feast-rest
+---
+# RoleBindings for Feast Kubernetes auth (feast-auth CR).
+# Role names must match both spec.authz.kubernetes.roles and the
+# Permission objects the credit-scoring tutorial applies (feast-writer /
+# feast-reader). feast-admin / feast-viewer are not granted by those
+# Permission objects, so Feast correctly 403s tokens bound to them.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: feast-writer-binding
+  namespace: test-ns-feast-rest
+subjects:
+  - kind: ServiceAccount
+    name: feast-test-admin
+    namespace: test-ns-feast-rest
+roleRef:
+  kind: Role
+  name: feast-writer
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: feast-reader-binding
+  namespace: test-ns-feast-rest
+subjects:
+  - kind: ServiceAccount
+    name: feast-test-viewer
+    namespace: test-ns-feast-rest
+roleRef:
+  kind: Role
+  name: feast-reader
+  apiGroup: rbac.authorization.k8s.io
+---
+# Data Registry RBAC — grant feast-test-admin access via aggregated ClusterRoles.
+# The operator creates ClusterRoles feast-data-registry-viewer/editor/admin
+# with rules for API group dataregistry.opendatahub.io.
+# A namespaced RoleBinding grants the SA access scoped to test-ns-feast-rest.
+# kube-rbac-proxy SAR uses the URL path {project} as the Kubernetes namespace,
+# and the tests call /v1/test-ns-feast-rest/... so the binding stays in the
+# tenant namespace even though the Data Registry CR lives in rhoai-data-registry.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: dr-admin-binding
+  namespace: test-ns-feast-rest
+subjects:
+  - kind: ServiceAccount
+    name: feast-test-admin
+    namespace: test-ns-feast-rest
+roleRef:
+  kind: ClusterRole
+  name: feast-data-registry-editor
+  apiGroup: rbac.authorization.k8s.io

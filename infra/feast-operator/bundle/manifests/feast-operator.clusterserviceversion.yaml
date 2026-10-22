@@ -80,6 +80,35 @@ metadata:
           "apiVersion": "feast.dev/v1",
           "kind": "FeatureStore",
           "metadata": {
+            "name": "sample-mcpserver"
+          },
+          "spec": {
+            "feastProject": "my_project",
+            "services": {
+              "mcpServer": {
+                "config": {
+                  "configMapRef": {
+                    "name": "sample-mcpserver-config"
+                  }
+                }
+              },
+              "onlineStore": {
+                "server": {}
+              },
+              "registry": {
+                "local": {
+                  "server": {
+                    "restAPI": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "apiVersion": "feast.dev/v1",
+          "kind": "FeatureStore",
+          "metadata": {
             "name": "sample-remote-servers"
           },
           "spec": {
@@ -147,10 +176,10 @@ metadata:
         }
       ]
     capabilities: Basic Install
-    createdAt: "2026-10-07T05:28:38Z"
+    createdAt: "2026-10-13T13:23:07Z"
     operators.operatorframework.io/builder: operator-sdk-v1.41.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
-  name: feast-operator.v0.66.0
+  name: feast-operator.v0.67.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -193,6 +222,7 @@ spec:
           resources:
           - namespaces
           verbs:
+          - create
           - get
           - list
           - update
@@ -231,9 +261,16 @@ spec:
           - ""
           resources:
           - pods/log
+          verbs:
+          - get
+        - apiGroups:
+          - ""
+          resources:
           - secrets
           verbs:
           - get
+          - list
+          - watch
         - apiGroups:
           - ""
           resources:
@@ -294,12 +331,26 @@ spec:
           - update
           - watch
         - apiGroups:
-          - config.openshift.io
+          - dataregistry.opendatahub.io
           resources:
-          - apiservers
+          - connections
           verbs:
+          - use
+        - apiGroups:
+          - dataregistry.opendatahub.io
+          resources:
+          - generic-tables
+          - namespaces
+          - registries
+          - tables
+          - volumes
+          verbs:
+          - create
+          - delete
           - get
           - list
+          - patch
+          - update
           - watch
         - apiGroups:
           - feast.dev
@@ -370,12 +421,15 @@ spec:
           - rbac.authorization.k8s.io
           resources:
           - clusterrolebindings
+          - rolebindings
+          - roles
           verbs:
           - create
           - delete
           - get
           - list
           - update
+          - watch
         - apiGroups:
           - rbac.authorization.k8s.io
           resources:
@@ -387,6 +441,9 @@ spec:
         - apiGroups:
           - rbac.authorization.k8s.io
           resourceNames:
+          - feast-data-registry-admin
+          - feast-data-registry-editor
+          - feast-data-registry-viewer
           - feast-discover-namespaces
           - feast-oidc-token-review
           - feast-token-review-cluster-role
@@ -395,18 +452,6 @@ spec:
           verbs:
           - delete
           - update
-        - apiGroups:
-          - rbac.authorization.k8s.io
-          resources:
-          - rolebindings
-          - roles
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - update
-          - watch
         - apiGroups:
           - route.openshift.io
           resources:
@@ -419,6 +464,13 @@ spec:
           - update
           - watch
         - apiGroups:
+          - route.openshift.io
+          resources:
+          - routes/custom-host
+          verbs:
+          - create
+          - update
+        - apiGroups:
           - sparkoperator.k8s.io
           resources:
           - sparkapplications
@@ -426,6 +478,14 @@ spec:
           - create
           - delete
           - get
+        - apiGroups:
+          - rbac.authorization.k8s.io
+          resourceNames:
+          - system:auth-delegator
+          resources:
+          - clusterroles
+          verbs:
+          - bind
         - apiGroups:
           - authentication.k8s.io
           resources:
@@ -469,13 +529,19 @@ spec:
                 - /manager
                 env:
                 - name: RELATED_IMAGE_FEATURE_SERVER
-                  value: quay.io/feastdev/feature-server:0.66.0
+                  value: quay.io/feastdev/feature-server:0.67.0
                 - name: RELATED_IMAGE_CRON_JOB
-                  value: quay.io/openshift/origin-cli:4.17
+                  value: registry.k8s.io/kubectl:v1.35.9
+                - name: RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE
+                  value: quay.io/opendatahub/odh-kube-rbac-proxy@sha256:acd9de62b8339dbacd39635317e5e596e09a70ae26ac9eccdde4a4124388740f
+                - name: POD_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
                 - name: GOMEMLIMIT
                   value: 230MiB
                 - name: OIDC_ISSUER_URL
-                image: quay.io/feastdev/feast-operator:0.66.0
+                image: quay.io/feastdev/feast-operator:0.67.0
                 livenessProbe:
                   httpGet:
                     path: /healthz
@@ -565,8 +631,10 @@ spec:
     name: Feast Community
     url: https://lf-aidata.atlassian.net/wiki/spaces/FEAST/
   relatedImages:
-  - image: quay.io/feastdev/feature-server:0.66.0
+  - image: quay.io/feastdev/feature-server:0.67.0
     name: feature-server
-  - image: quay.io/openshift/origin-cli:4.17
+  - image: registry.k8s.io/kubectl:v1.35.9
     name: cron-job
-  version: 0.66.0
+  - image: quay.io/opendatahub/odh-kube-rbac-proxy@sha256:acd9de62b8339dbacd39635317e5e596e09a70ae26ac9eccdde4a4124388740f
+    name: odh-kube-rbac-proxy-image
+  version: 0.67.0

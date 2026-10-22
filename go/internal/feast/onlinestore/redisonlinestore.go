@@ -91,7 +91,8 @@ func NewRedisOnlineStore(project string, config *registry.RepoConfig, onlineStor
 					if err != nil {
 						return nil, err
 					} else if result {
-						tlsConfig = &tls.Config{}
+						// Empty config: Go's default TLS versions, ciphers and system trust store apply.
+						tlsConfig = &tls.Config{} // tls-lint:ignore:hardcoded-tls-config
 					}
 				} else if kv[0] == "db" {
 					db, err = strconv.Atoi(kv[1])

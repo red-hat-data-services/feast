@@ -73,12 +73,18 @@ spec:
             drop:
             - "ALL"
         env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
         - name: GOMEMLIMIT
           value: "230MiB"
         - name: RELATED_IMAGE_FEATURE_SERVER
           value: feast:latest
         - name: RELATED_IMAGE_CRON_JOB
-          value: origin-cli:latest
+          value: registry.k8s.io/kubectl:v1.35.9
+        - name: RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE
+          value: quay.io/opendatahub/odh-kube-rbac-proxy@sha256:acd9de62b8339dbacd39635317e5e596e09a70ae26ac9eccdde4a4124388740f
         # Injected from params.env via kustomize replacements (ODH/RHOAI overlays).
         # Open Data Hub operator sets this from GatewayConfig when the cluster uses external OIDC.
         - name: OIDC_ISSUER_URL

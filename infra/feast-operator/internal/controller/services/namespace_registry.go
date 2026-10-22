@@ -64,9 +64,17 @@ func (feast *FeastServices) deployNamespaceRegistry() error {
 	logger.V(1).Info("Deploying namespace registry", "targetNamespace", targetNamespace)
 
 	if err := feast.createNamespaceRegistryConfigMap(targetNamespace); err != nil {
+		if apierrors.IsNotFound(err) {
+			logger.V(1).Info("Skipping namespace registry: target namespace not found", "namespace", targetNamespace)
+			return nil
+		}
 		return err
 	}
 	if err := feast.createNamespaceRegistryRoleBinding(targetNamespace); err != nil {
+		if apierrors.IsNotFound(err) {
+			logger.V(1).Info("Skipping namespace registry role binding: target namespace not found", "namespace", targetNamespace)
+			return nil
+		}
 		return err
 	}
 	return nil

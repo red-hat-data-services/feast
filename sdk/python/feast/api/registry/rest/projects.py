@@ -1,5 +1,10 @@
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 
+from feast.api.registry.rest.data_registry_sar import (
+    extract_bearer_token,
+    filter_projects_by_sar,
+    is_data_registry_sar_enabled,
+)
 from feast.api.registry.rest.rest_utils import (
     get_pagination_params,
     get_sorting_params,
@@ -27,6 +32,7 @@ def get_project_router(grpc_handler) -> APIRouter:
 
     @router.get("/projects")
     def list_projects(
+        request: Request,
         allow_cache: bool = Query(True),
         pagination_params: dict = Depends(get_pagination_params),
         sorting_params: dict = Depends(get_sorting_params),
@@ -43,6 +49,12 @@ def get_project_router(grpc_handler) -> APIRouter:
 
         if err_msg:
             return {"error": err_msg}
+
+        if is_data_registry_sar_enabled():
+            token = extract_bearer_token(request)
+            if not token:
+                raise HTTPException(status_code=401, detail="Bearer token required")
+            projects = filter_projects_by_sar(projects, token)
 
         return {
             "projects": projects,

@@ -65,7 +65,7 @@ class CliRunner:
 
     def run(
         self, args: List[str], cwd: Path, attempts: int = 2
-    ) -> subprocess.CompletedProcess:
+    ) -> subprocess.CompletedProcess | None:
         # Apply a conservative timeout to prevent CI hangs from Dask atexit-handler
         # stalls or other subprocess blockages.
         timeout = 120
@@ -215,6 +215,8 @@ class CliRunner:
 
             if apply:
                 result = self.run(["apply"], cwd=repo_path)
+                if result is None:
+                    raise RuntimeError("feast apply timed out")
                 stdout = result.stdout.decode("utf-8")
                 stderr = result.stderr.decode("utf-8")
                 print(f"Apply stdout:\n{stdout}")

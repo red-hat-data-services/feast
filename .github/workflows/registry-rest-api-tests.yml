@@ -21,7 +21,7 @@ jobs:
     if:
       ((github.event.action == 'labeled' && (github.event.label.name == 'approved' || github.event.label.name == 'lgtm' || github.event.label.name == 'ok-to-test')) ||
       (github.event.action != 'labeled' && (contains(github.event.pull_request.labels.*.name, 'ok-to-test') || contains(github.event.pull_request.labels.*.name, 'approved') || contains(github.event.pull_request.labels.*.name, 'lgtm')))) &&
-      github.repository == 'feast-dev/feast'
+      (github.repository == 'feast-dev/feast' || github.repository == 'opendatahub-io/feast')
     runs-on: ubuntu-latest
 
     services:
@@ -50,7 +50,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.25.0
+          go-version: 1.26.0
 
       - name: Create KIND cluster
         run: |

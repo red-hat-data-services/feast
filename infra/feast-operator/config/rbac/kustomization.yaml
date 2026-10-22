@@ -24,3 +24,9 @@ resources:
 # if you do not want those helpers be installed with your Project.
 - featurestore_editor_role.yaml
 - featurestore_viewer_role.yaml
+
+patches:
+- path: manager_role_auth_delegator_bind_patch.yaml
+  target:
+    kind: ClusterRole
+    name: manager-role

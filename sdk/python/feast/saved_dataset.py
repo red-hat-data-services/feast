@@ -1,3 +1,4 @@
+import json
 from abc import abstractmethod
 from datetime import datetime
 from typing import TYPE_CHECKING, Dict, List, Optional, Type, cast
@@ -9,7 +10,11 @@ from google.protobuf.json_format import MessageToJson
 from feast.data_source import DataSource
 from feast.dqm.profilers.profiler import Profile, Profiler
 from feast.importer import import_class
+from feast.protos.feast.core.DataSource_pb2 import DataSource as DataSourceProto
 from feast.protos.feast.core.SavedDataset_pb2 import SavedDataset as SavedDatasetProto
+from feast.protos.feast.core.SavedDataset_pb2 import (
+    SavedDatasetColumn as SavedDatasetColumnProto,
+)
 from feast.protos.feast.core.SavedDataset_pb2 import SavedDatasetMeta, SavedDatasetSpec
 from feast.protos.feast.core.SavedDataset_pb2 import (
     SavedDatasetStorage as SavedDatasetStorageProto,
@@ -24,17 +29,67 @@ if TYPE_CHECKING:
 
 class _StorageRegistry(type):
     classes_by_proto_attr_name: Dict[str, Type["SavedDatasetStorage"]] = {}
+    # Several storage classes share the ``custom_storage`` oneof field, so the
+    # mapping above cannot identify them. Every claimant is recorded here in
+    # registration order so that dispatch can tell "one obvious class" apart
+    # from "several, pick deliberately".
+    all_classes_by_proto_attr_name: Dict[str, List[Type["SavedDatasetStorage"]]] = {}
 
     def __new__(cls, name, bases, dct):
         kls = type.__new__(cls, name, bases, dct)
-        if dct.get("_proto_attr_name"):
-            cls.classes_by_proto_attr_name[dct["_proto_attr_name"]] = kls
+        proto_attr_name = dct.get("_proto_attr_name")
+        if proto_attr_name:
+            cls.classes_by_proto_attr_name[proto_attr_name] = kls
+            claimants = cls.all_classes_by_proto_attr_name.setdefault(
+                proto_attr_name, []
+            )
+            if kls not in claimants:
+                claimants.append(kls)
         return kls
+
+
+# Key under which a custom_storage payload records the concrete storage class
+# that wrote it. CustomSourceOptions.configuration is an opaque byte string the
+# implementer owns, and every claimant already reads it as JSON by explicit key,
+# so an extra key is ignored by older readers.
+CUSTOM_STORAGE_CLASS_KEY = "saved_dataset_storage_class"
+
+
+def _class_path(cls: type) -> str:
+    return f"{cls.__module__}.{cls.__qualname__}"
+
+
+def _read_custom_storage_class(
+    options_proto: DataSourceProto.CustomSourceOptions,
+) -> Optional[Type["SavedDatasetStorage"]]:
+    """Resolve the class recorded in a custom_storage payload, if it has one.
+
+    Returns ``None`` for a payload written before this key existed, or one whose
+    configuration is not the JSON object the claimants write, so the caller can
+    fall back instead of failing on data it could previously read.
+    """
+    try:
+        config = json.loads(options_proto.configuration.decode("utf8"))
+    except (UnicodeDecodeError, ValueError):
+        return None
+    if not isinstance(config, dict):
+        return None
+    class_path = config.get(CUSTOM_STORAGE_CLASS_KEY)
+    if not isinstance(class_path, str) or not class_path:
+        return None
+    try:
+        return get_saved_dataset_storage_class_from_path(class_path)
+    except Exception:
+        # A recorded path can be unresolvable here: the class may live in an
+        # extra that is not installed, or may not be importable at all. Fall
+        # back rather than turn a readable payload into an import failure.
+        return None
 
 
 _DATA_SOURCE_TO_SAVED_DATASET_STORAGE = {
     "FileSource": "feast.infra.offline_stores.file_source.SavedDatasetFileStorage",
     "SparkSource": "feast.infra.offline_stores.contrib.spark_offline_store.spark_source.SavedDatasetSparkStorage",
+    "LanceSource": "feast.infra.data_sources.contrib.lance.lance_source.SavedDatasetLanceStorage",
 }
 
 
@@ -49,8 +104,46 @@ class SavedDatasetStorage(metaclass=_StorageRegistry):
     @staticmethod
     def from_proto(storage_proto: SavedDatasetStorageProto) -> "SavedDatasetStorage":
         proto_attr_name = cast(str, storage_proto.WhichOneof("kind"))
+
+        if proto_attr_name == "custom_storage":
+            recorded = _read_custom_storage_class(storage_proto.custom_storage)
+            if recorded is not None:
+                return recorded.from_proto(storage_proto)
+
+        claimants = _StorageRegistry.all_classes_by_proto_attr_name.get(
+            proto_attr_name, []
+        )
+        if len(claimants) > 1:
+            raise ValueError(
+                f"{len(claimants)} storage classes claim the "
+                f"'{proto_attr_name}' field and this payload does not record "
+                f"which one wrote it, so it cannot be read back unambiguously: "
+                f"{', '.join(sorted(_class_path(c) for c in claimants))}. "
+                f"Saved datasets written after this version record their class "
+                f"under the '{CUSTOM_STORAGE_CLASS_KEY}' key; this one predates "
+                f"that, and the payloads of these classes are not otherwise "
+                f"distinguishable. Call the intended class's from_proto directly."
+            )
+
         return _StorageRegistry.classes_by_proto_attr_name[proto_attr_name].from_proto(
             storage_proto
+        )
+
+    def _custom_storage_proto(
+        self, options_proto: DataSourceProto.CustomSourceOptions
+    ) -> SavedDatasetStorageProto:
+        """Wrap custom source options, recording which class wrote them.
+
+        Classes that share the ``custom_storage`` field must use this instead of
+        constructing the proto directly, otherwise ``from_proto`` has nothing to
+        dispatch on and has to guess from import order.
+        """
+        config = json.loads(options_proto.configuration.decode("utf8"))
+        config[CUSTOM_STORAGE_CLASS_KEY] = _class_path(type(self))
+        return SavedDatasetStorageProto(
+            custom_storage=DataSourceProto.CustomSourceOptions(
+                configuration=json.dumps(config).encode()
+            )
         )
 
     @abstractmethod
@@ -75,6 +168,66 @@ class SavedDatasetStorage(metaclass=_StorageRegistry):
             )
 
 
+class SavedDatasetColumn:
+    """Schema column definition for a SavedDataset (data-registry assets).
+
+    Mirrors OpenAPI ``SchemaField`` (name, type, description, nullable).
+    """
+
+    name: str
+    type: str
+    description: str
+    nullable: bool
+
+    def __init__(
+        self,
+        name: str,
+        type: str,
+        description: str = "",
+        nullable: bool = True,
+    ):
+        self.name = name
+        self.type = type
+        self.description = description
+        self.nullable = nullable
+
+    def __eq__(self, other):
+        if not isinstance(other, SavedDatasetColumn):
+            return False
+        return (
+            self.name == other.name
+            and self.type == other.type
+            and self.description == other.description
+            and self.nullable == other.nullable
+        )
+
+    def __hash__(self):
+        return hash((self.name, self.type, self.description, self.nullable))
+
+    @staticmethod
+    def from_proto(column_proto: SavedDatasetColumnProto) -> "SavedDatasetColumn":
+        # Proto3 scalar bool defaults to false when unset; OpenAPI SchemaField
+        # defaults nullable to true. optional + HasField preserves explicit false.
+        if column_proto.HasField("nullable"):
+            nullable = column_proto.nullable
+        else:
+            nullable = True
+        return SavedDatasetColumn(
+            name=column_proto.name,
+            type=column_proto.type,
+            description=column_proto.description,
+            nullable=nullable,
+        )
+
+    def to_proto(self) -> SavedDatasetColumnProto:
+        return SavedDatasetColumnProto(
+            name=self.name,
+            type=self.type,
+            description=self.description,
+            nullable=self.nullable,
+        )
+
+
 class SavedDataset:
     name: str
     features: List[str]
@@ -86,6 +239,7 @@ class SavedDataset:
     namespace: str = ""
     collection: str = ""
     description: str = ""
+    columns: List[SavedDatasetColumn]
 
     created_timestamp: Optional[datetime] = None
     last_updated_timestamp: Optional[datetime] = None
@@ -107,6 +261,7 @@ class SavedDataset:
         namespace: str = "",
         collection: str = "",
         description: str = "",
+        columns: Optional[List[SavedDatasetColumn]] = None,
     ):
         self.name = name
         self.features = features
@@ -118,6 +273,7 @@ class SavedDataset:
         self.namespace = namespace
         self.collection = collection
         self.description = description
+        self.columns = columns or []
 
         self._retrieval_job = None
 
@@ -146,6 +302,7 @@ class SavedDataset:
             or self.namespace != other.namespace
             or self.collection != other.collection
             or self.description != other.description
+            or self.columns != other.columns
         ):
             return False
 
@@ -169,6 +326,10 @@ class SavedDataset:
             namespace=saved_dataset_proto.spec.namespace,
             collection=saved_dataset_proto.spec.collection,
             description=saved_dataset_proto.spec.description,
+            columns=[
+                SavedDatasetColumn.from_proto(column)
+                for column in saved_dataset_proto.spec.columns
+            ],
         )
 
         if saved_dataset_proto.spec.feature_service_name:
@@ -203,6 +364,8 @@ class SavedDataset:
         meta = SavedDatasetMeta()
         if self.created_timestamp:
             meta.created_timestamp.FromDatetime(self.created_timestamp)
+        if self.last_updated_timestamp:
+            meta.last_updated_timestamp.FromDatetime(self.last_updated_timestamp)
         if self.min_event_timestamp:
             meta.min_event_timestamp.FromDatetime(self.min_event_timestamp)
         if self.max_event_timestamp:
@@ -218,6 +381,7 @@ class SavedDataset:
             namespace=self.namespace,
             collection=self.collection,
             description=self.description,
+            columns=[column.to_proto() for column in self.columns],
         )
         if self.feature_service_name:
             spec.feature_service_name = self.feature_service_name
@@ -261,7 +425,7 @@ class ValidationReference:
     dataset_name: str
     description: str
     tags: Dict[str, str]
-    profiler: Profiler
+    profiler: Optional[Profiler]
 
     _profile: Optional[Profile] = None
     _dataset: Optional[SavedDataset] = None
@@ -270,7 +434,7 @@ class ValidationReference:
         self,
         name: str,
         dataset_name: str,
-        profiler: Profiler,
+        profiler: Optional[Profiler] = None,
         description: str = "",
         tags: Optional[Dict[str, str]] = None,
     ):
@@ -316,28 +480,49 @@ class ValidationReference:
                     "to get validation reference object."
                 )
 
+            if not self.profiler:
+                raise RuntimeError(
+                    "Failed to calculate profile: profiler is not set on this "
+                    "ValidationReference."
+                )
+
             self._profile = self.profiler.analyze_dataset(self._dataset.to_df())
         return self._profile
 
     @classmethod
-    def from_proto(cls, proto: ValidationReferenceProto) -> "ValidationReference":
-        profiler_attr = proto.WhichOneof("profiler")
-        if profiler_attr == "ge_profiler":
-            from feast.dqm.profilers.ge_profiler import GEProfiler
+    def from_proto(
+        cls, proto: ValidationReferenceProto, skip_udf: bool = False
+    ) -> "ValidationReference":
+        """Build a ValidationReference from its proto.
 
-            profiler = GEProfiler.from_proto(proto.ge_profiler)
-        else:
-            raise RuntimeError("Unrecognized profiler")
+        Args:
+            proto: the serialized validation reference.
+            skip_udf: when True, leave ``profiler`` and the cached profile unset
+                instead of deserializing them. Both are dill payloads, so callers
+                that only need identity metadata (notably authorization checks in
+                the registry server) must not deserialize them.
+        """
+        profiler: Optional[Profiler] = None
+        profile: Optional[Profile] = None
 
-        profile_attr = proto.WhichOneof("cached_profile")
-        if profile_attr == "ge_profile":
-            from feast.dqm.profilers.ge_profiler import GEProfile
+        if not skip_udf:
+            profiler_attr = proto.WhichOneof("profiler")
+            if profiler_attr == "ge_profiler":
+                from feast.dqm.profilers.ge_profiler import GEProfiler
 
-            profile = GEProfile.from_proto(proto.ge_profile)
-        elif not profile_attr:
-            profile = None
-        else:
-            raise RuntimeError("Unrecognized profile")
+                profiler = GEProfiler.from_proto(proto.ge_profiler)
+            else:
+                raise RuntimeError("Unrecognized profiler")
+
+            profile_attr = proto.WhichOneof("cached_profile")
+            if profile_attr == "ge_profile":
+                from feast.dqm.profilers.ge_profiler import GEProfile
+
+                profile = GEProfile.from_proto(proto.ge_profile)
+            elif not profile_attr:
+                profile = None
+            else:
+                raise RuntimeError("Unrecognized profile")
 
         ref = ValidationReference(
             name=proto.name,
