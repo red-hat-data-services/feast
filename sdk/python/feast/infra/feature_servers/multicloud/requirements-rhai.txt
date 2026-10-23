@@ -11,11 +11,11 @@ aiofile==3.12.3 \
 aiohappyeyeballs==2.7.1 \
     --hash=sha256:6c06961fde24f3f847939e288b8e6398973752c358a58cdc067115f8fe87a35d
     # via aiohttp
-aiohttp==3.14.3 \
-    --hash=sha256:06ec28a1d9f5823ac39f11dfe4fdea83fe7f227d78453d781db31779b2cb077f \
-    --hash=sha256:27901378905a4304a7c20d13696dc2ddd54d2b052e357c027077436d3a753330 \
-    --hash=sha256:ef298d6ad215a6b01d21f2c68cfd291dcfe7ddeb99f608529eb71b101083e297 \
-    --hash=sha256:fb4d75b223840f152dacd97e5a366695be3507d3a4f77aa3b8a53ce49e9e6e36
+aiohttp==3.14.5 \
+    --hash=sha256:29a202546033449413394eec897b7c5d78c3d2a1f8f04eefe7ef0a612541b2db \
+    --hash=sha256:4ab516f59c99f77b64159925a070e08952b919aef99d8ead02755639f2a6de7b \
+    --hash=sha256:95553d712c656ca0764d77fe09cd4a19da99dcc9f3c4209e0fc3093c8a7a7075 \
+    --hash=sha256:acdbb632b7d57d1882e12fe2a0ddc9bc021a2dee01e3c1163a75e495c175298c
     # via aiobotocore
 aioitertools==0.13.0 \
     --hash=sha256:a0a514b4fc5db7b26bbd04ca324f5cdf84dafb2bc3f125506008203fd4180787
@@ -197,8 +197,8 @@ fastmcp-slim==3.4.8 \
 feast==0.67.0 \
     --hash=sha256:9744eb57aa7f7d78c36bd10626ece3f1f12ebfbbbd590ccdf5f6b544180e542b
     # via -r requirements.in
-filelock==3.32.3 \
-    --hash=sha256:6e035dd6f1197fb793dbaaf9f8f80501cdbcbdaf893908fe4a0c05ff85e652a8
+filelock==3.32.7 \
+    --hash=sha256:56a1ce9110ed441e93162f32d6649ab765d1817038148dd44dc7b5f5b12b4bc4
     # via snowflake-connector-python
 frozenlist==1.8.0 \
     --hash=sha256:0587167d1466b423985fa29ab853c521248684cb316bf7f95ea4a30d541638aa \
@@ -664,8 +664,8 @@ pygments==2.20.0 \
     #   feast
     #   rich
     #   rich-rst
-pyjwt==2.13.0 \
-    --hash=sha256:e41ba1429295310a13a8e4ccb157bff6e845a1869d0a2361173fe5055d31538b
+pyjwt==2.15.1 \
+    --hash=sha256:93c255639f9db189d03b4ebdbddd34e912a77961801bae3ae5424028f4154894
     # via
     #   feast
     #   mcp
@@ -705,7 +705,9 @@ python-multipart==0.0.32 \
     #   mcp
 pytz==2026.3.post1 \
     --hash=sha256:4df56b291be5096471c47765048f9468899bbbcf46f4f393b4d0d18d41ad6a80
-    # via snowflake-connector-python
+    # via
+    #   pandas
+    #   snowflake-connector-python
 pyyaml==6.0.3 \
     --hash=sha256:098744412b0c4bd8dc58605244251273cb2d78e76a21cd6969d927a9e0dc998d \
     --hash=sha256:41724f293a440cee7a33953bb32d22ed72e31de54a3173b423556a86f6fb5b28 \
@@ -885,12 +887,14 @@ typing-inspection==0.4.4 \
     #   pydantic-settings
 tzdata==2026.3 \
     --hash=sha256:b48d1491271c838429ac5f2f3b4281d3badecee847680cbe137fdd64982f9205
-    # via ibis-framework
+    # via
+    #   ibis-framework
+    #   pandas
 uncalled-for==0.4.1 \
     --hash=sha256:8b531fc3d9da1d68f19a3c02e78f438fddd31b69a11035c0d8e825ee1b00fd63
     # via fastmcp-slim
-urllib3==2.7.0 \
-    --hash=sha256:74da65bbe2a901ff75d9f311b70c3476d0b2257c830ed6bb2ae09b24ad221d20
+urllib3==2.8.0 \
+    --hash=sha256:82ee533e8a49f8239e310d9926b4330470208f844e7a0fa6e1da2001185cc1b7
     # via
     #   botocore
     #   kubernetes
@@ -934,9 +938,9 @@ wrapt==2.3.0 \
     --hash=sha256:b2ff80415a5deb5c49bf71753c1a16fce31df65dcd0759da58e280353b5b1049 \
     --hash=sha256:ce8cbc700feaf711493105cc1955276f863377bec2828f7437d76618eb6ff94c
     # via aiobotocore
-yarl==1.24.5 \
-    --hash=sha256:306b51141c5e877ee3e55b427892d1193f8e5f7285d323294886140cdbbaf0ab \
-    --hash=sha256:31215c3cbea380fb980985ebe09e130b6701ce6988f36acca6e7bbd7f92a95b8 \
-    --hash=sha256:548c1195282d98117e327656c9fa4312ffadf4f7fbb73bca37641bbe7f5bb603 \
-    --hash=sha256:cc5f42d522589110efa553523cc1375474f3af45c6a9254bf7648e3a720a72ef
+yarl==1.25.1 \
+    --hash=sha256:069576fa26443978d5d7744f48a5ae0a192945f00f75cc8941a631d98f7de0c3 \
+    --hash=sha256:21b8b5af63bb30900eb537d3f8503feb761bbb8216af40e4bd377e949b185b7c \
+    --hash=sha256:4bab4682e60b3f10095bcf98d0545c0e1156480db48cc84f8a0f77774678f5c8 \
+    --hash=sha256:7ed7a23a71123c566393068331379494d1a90d84ce3702b8ca78c8a679b2acd2
     # via aiohttp
