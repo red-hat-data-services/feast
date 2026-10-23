@@ -2,6 +2,9 @@ FROM registry.access.redhat.com/ubi9/python-312-minimal:latest
 
 USER 0
 RUN microdnf install -y git gcc libpq-devel python3.12-devel && microdnf clean all
+RUN microdnf install -y crypto-policies-scripts && \
+    update-crypto-policies --set DEFAULT:PQ && \
+    microdnf clean all
 USER 1001
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
