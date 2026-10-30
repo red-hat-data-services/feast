@@ -32,6 +32,15 @@ const (
 	// ConfigMapName is written by feast-module-operator into the operand namespace.
 	ConfigMapName = "feast-capabilities-config"
 
+	// CapabilitiesConfigFinalizer is added by this operator to the platform
+	// capabilities ConfigMap. While present, the ConfigMap cannot complete
+	// deletion without this operator observing it: on a Terminating ConfigMap
+	// carrying disabled capability flags (module operator uninstall intent)
+	// the finalizer is held until the Data Registry cleanup has finished, and
+	// only then removed. feast-module-operator waits for this finalizer to
+	// disappear before releasing its own and uninstalling this operator.
+	CapabilitiesConfigFinalizer = "feast.dev/capabilities-config-cleanup"
+
 	KeyFeatureStoreEnabled       = "featureStoreEnabled"
 	KeyDataRegistryEnabled       = "dataRegistryEnabled"
 	KeyDataRegistryNamespace     = "dataRegistryNamespace"
@@ -47,6 +56,10 @@ type Config struct {
 	DataRegistryEnabled   bool
 	DataRegistryNamespace string
 	PlatformConfigPresent bool
+	// PlatformConfigTerminating is true when the ConfigMap exists but carries a
+	// deletionTimestamp, i.e. it is being deleted and the deletion is held by
+	// finalizers. The object and its data remain readable in this state.
+	PlatformConfigTerminating bool
 }
 
 // OperatorNamespace returns the namespace where the manager pod runs (operand install NS).
@@ -100,10 +113,11 @@ func Load(ctx context.Context, c client.Client) (Config, error) {
 	}
 
 	out := Config{
-		FeatureStoreEnabled:   true,
-		DataRegistryEnabled:   true,
-		DataRegistryNamespace: DefaultDataRegistryNamespace,
-		PlatformConfigPresent: true,
+		FeatureStoreEnabled:       true,
+		DataRegistryEnabled:       true,
+		DataRegistryNamespace:     DefaultDataRegistryNamespace,
+		PlatformConfigPresent:     true,
+		PlatformConfigTerminating: cm.DeletionTimestamp != nil,
 	}
 
 	if v, ok := cm.Data[KeyFeatureStoreEnabled]; ok {

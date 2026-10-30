@@ -9,7 +9,10 @@ from pydantic import ValidationError
 
 from feast import FeatureStore
 from feast.api.registry.rest import register_all_routes
-from feast.api.registry.rest.data_catalog_integration import add_data_catalog_routes
+from feast.api.registry.rest.data_catalog_integration import (
+    add_data_catalog_routes,
+    sync_registry_project_protection,
+)
 from feast.errors import (
     FeastObjectNotFoundException,
     FeastPermissionError,
@@ -359,9 +362,7 @@ class RestRegistryServer:
         via a pre-built socket; any other host falls back to plain uvicorn.run."""
         import uvicorn
 
-        from feast.registry_server import _sync_protected_project_tag
-
-        _sync_protected_project_tag(self.store)
+        sync_registry_project_protection(self.store)
 
         ssl_kwargs: dict = {}
         if tls_key_path and tls_cert_path:
