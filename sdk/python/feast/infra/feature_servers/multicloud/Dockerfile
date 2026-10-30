@@ -10,7 +10,32 @@ USER 1001
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 ENV UV_CACHE_DIR=/tmp/uv-cache
 COPY sdk/python/feast/infra/feature_servers/multicloud/requirements.txt requirements.txt
-RUN uv pip install -r requirements.txt
+
+# Power (ppc64le) only: pin pyarrow, re2, and grpcio via IBM wheels
+RUN set -eux; \
+    if [ "$(uname -m)" = "ppc64le" ]; then \
+        echo "Power architecture detected. Installing pinned pyarrow and re2 version..."; \
+        /prebuild-power-base.sh; \
+    else \
+        echo "Non-Power architecture detected; skipping Power-specific pyarrow installation."; \
+    fi
+
+# On ppc64le: feast[minimal] extras minus milvus (no faiss-cpu wheel).
+# Keep the version pin from requirements.txt; only swap extras.
+# On other arches: standard requirements.txt install.
+RUN set -eux; \
+    if [ "$(uname -m)" = "ppc64le" ]; then \
+        test -s /power-constraints.txt; \
+        sed -E 's/^feast\[minimal\]/feast[aws,gcp,snowflake,redis,go,mysql,postgres-c,opentelemetry,grpcio,k8s,duckdb,mcp,mcp-server]/' \
+            requirements.txt > /tmp/requirements-ppc64le.txt; \
+        grep -q '^feast\[aws,' /tmp/requirements-ppc64le.txt; \
+        uv pip install --index-strategy unsafe-best-match \
+            --extra-index-url https://wheels.developerfirst.ibm.com/ppc64le/linux \
+            -c /power-constraints.txt \
+            -r /tmp/requirements-ppc64le.txt; \
+    else \
+        uv pip install -r requirements.txt; \
+    fi
 
 # Replace PyPI feast with this git checkout so /healthz, catalog APIs, and
 # Data Registry SAR match the commit Konflux is testing.
