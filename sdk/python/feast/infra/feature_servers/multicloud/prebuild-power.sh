@@ -28,6 +28,33 @@ python3.12 -m pip install \
     -r "${POWER_REQUIREMENTS_FILE}"
 
 #######################################################
+# grpcio: use the system OpenSSL instead of the bundled one
+#######################################################
+# The IBM grpcio wheel ships its own OpenSSL (grpcio.libs/libssl-*, libcrypto-*).
+# On FIPS hosts the bundled OpenSSL cannot get any ciphers once the system FIPS
+# provider is loaded: SSL_CTX_new() returns NULL ("library has no ciphers") and
+# gRPC then segfaults in SSL_CTX_set_options() when starting a TLS server
+# (e.g. `feast serve_registry --key ... --cert ...`).
+# Replace the bundled libraries with symlinks to the system OpenSSL so only one
+# OpenSSL is loaded. The links resolve in the runtime image as well.
+echo "Pointing grpcio's bundled OpenSSL at the system OpenSSL..."
+GRPC_BUNDLED_LIBS=$(find /opt/app-root -path '*/grpcio.libs/*' \
+    \( -name 'libssl-*.so.*' -o -name 'libcrypto-*.so.*' \) ! -type l)
+
+if [ -z "${GRPC_BUNDLED_LIBS}" ]; then
+    echo "No bundled OpenSSL found in grpcio; nothing to replace."
+else
+    for lib in ${GRPC_BUNDLED_LIBS}; do
+        case "$(basename "${lib}")" in
+            libssl-*)    ln -sf /usr/lib64/libssl.so.3    "${lib}" ;;
+            libcrypto-*) ln -sf /usr/lib64/libcrypto.so.3 "${lib}" ;;
+        esac
+        ls -l "${lib}"
+    done
+fi
+python3.12 -c "import grpc; print('grpc import ok', grpc.__version__)"
+
+#######################################################
 # Source builds — versions not available on IBM index
 #######################################################
 

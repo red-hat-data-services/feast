@@ -1,6 +1,10 @@
 import os
+import subprocess
+import sys
+import textwrap
 import tempfile
 from datetime import datetime, timedelta
+from unittest.mock import MagicMock, mock_open, patch
 
 import assertpy
 import pandas as pd
@@ -19,6 +23,15 @@ from feast.offline_server import OfflineServer, _init_auth_manager
 from feast.repo_config import RepoConfig
 from feast.torch_wrapper import get_torch
 from tests.utils.cli_repo_creator import CliRunner
+from feast.offline_server import (
+    _SYSTEM_CRYPTO_LIB,
+    _SYSTEM_SSL_LIB,
+    OfflineServer,
+    _configure_grpc_fips,
+    _is_fips_enabled,
+    _preload_system_openssl_for_fips,
+)
+
 
 PROJECT_NAME = "test_remote_offline"
 
@@ -263,6 +276,17 @@ def _test_get_historical_features_returns_nan(fs: FeatureStore):
             value = training_df[column_id][index]
             assertpy.assert_that(value).is_nan()
 
+def test_configure_grpc_fips_sets_cipher_suites():
+    with (
+        patch("feast.offline_server._is_fips_enabled", return_value=True),
+        patch.dict(os.environ, {}, clear=False),
+    ):
+        os.environ.pop("GRPC_SSL_CIPHER_SUITES", None)
+        _configure_grpc_fips()
+        assert "GRPC_SSL_CIPHER_SUITES" in os.environ
+        assert "DHE-RSA-AES128-GCM-SHA256" in os.environ["GRPC_SSL_CIPHER_SUITES"]
+        del os.environ["GRPC_SSL_CIPHER_SUITES"]
+
 
 def _test_get_historical_features_to_tensor_with_nan(fs: FeatureStore):
     entity_df = pd.DataFrame.from_dict(
@@ -345,3 +369,131 @@ def _test_pull_all_from_table_or_query(temp_dir, fs: FeatureStore):
         start_date=start_date,
         end_date=end_date,
     ).to_df()
+
+def test_configure_grpc_fips_noop_without_fips():
+    with (
+        patch("feast.offline_server._is_fips_enabled", return_value=False),
+        patch.dict(os.environ, {}, clear=False),
+    ):
+        os.environ.pop("GRPC_SSL_CIPHER_SUITES", None)
+        _configure_grpc_fips()
+        assert "GRPC_SSL_CIPHER_SUITES" not in os.environ
+
+
+def test_preload_system_openssl_noop_without_fips():
+    with (
+        patch("feast.offline_server._is_fips_enabled", return_value=False),
+        patch.dict(os.environ, {}, clear=False),
+    ):
+        os.environ.pop("LD_PRELOAD", None)
+        _preload_system_openssl_for_fips()
+        assert "LD_PRELOAD" not in os.environ
+
+
+def test_preload_system_openssl_noop_when_already_reexeced():
+    with (
+        patch("feast.offline_server._is_fips_enabled", return_value=True),
+        patch.dict(os.environ, {"_FEAST_FIPS_REEXEC": "1"}, clear=False),
+    ):
+        os.environ.pop("LD_PRELOAD", None)
+        _preload_system_openssl_for_fips()
+        assert "LD_PRELOAD" not in os.environ
+
+
+def test_preload_system_openssl_noop_when_already_preloaded():
+    with (
+        patch("feast.offline_server._is_fips_enabled", return_value=True),
+        patch.dict(
+            os.environ,
+            {"LD_PRELOAD": f"{_SYSTEM_SSL_LIB} {_SYSTEM_CRYPTO_LIB}"},
+            clear=False,
+        ),
+    ):
+        os.environ.pop("_FEAST_FIPS_REEXEC", None)
+        _preload_system_openssl_for_fips()
+        assert os.environ["LD_PRELOAD"] == f"{_SYSTEM_SSL_LIB} {_SYSTEM_CRYPTO_LIB}"
+
+
+def test_preload_system_openssl_reexecs_when_only_ssl_preloaded():
+    with (
+        patch("feast.offline_server._is_fips_enabled", return_value=True),
+        patch.dict(os.environ, {"LD_PRELOAD": _SYSTEM_SSL_LIB}, clear=False),
+        patch("os.path.exists", return_value=True),
+        patch("os.execv") as mock_execv,
+    ):
+        os.environ.pop("_FEAST_FIPS_REEXEC", None)
+        _preload_system_openssl_for_fips()
+        assert _SYSTEM_CRYPTO_LIB in os.environ["LD_PRELOAD"]
+        assert _SYSTEM_SSL_LIB in os.environ["LD_PRELOAD"]
+        mock_execv.assert_called_once()
+        del os.environ["LD_PRELOAD"]
+        del os.environ["_FEAST_FIPS_REEXEC"]
+
+
+def test_preload_system_openssl_reexecs_on_fips():
+    with (
+        patch("feast.offline_server._is_fips_enabled", return_value=True),
+        patch.dict(os.environ, {}, clear=False),
+        patch("os.path.exists", return_value=True),
+        patch("os.execv") as mock_execv,
+    ):
+        os.environ.pop("LD_PRELOAD", None)
+        os.environ.pop("_FEAST_FIPS_REEXEC", None)
+        _preload_system_openssl_for_fips()
+        assert _SYSTEM_SSL_LIB in os.environ["LD_PRELOAD"]
+        assert os.environ["_FEAST_FIPS_REEXEC"] == "1"
+        mock_execv.assert_called_once()
+        del os.environ["LD_PRELOAD"]
+        del os.environ["_FEAST_FIPS_REEXEC"]
+
+
+def test_module_level_fips_sets_env_before_pyarrow_import():
+    """GRPC_SSL_CIPHER_SUITES must be set at module load time,
+    before pyarrow.flight (which bundles gRPC) is imported.
+
+    Uses a subprocess so pyarrow.flight is not already cached in
+    sys.modules, which lets us verify the true import ordering.
+    """
+    script = textwrap.dedent("""\
+        import io, os, sys
+
+        # Intercept only /proc/sys/crypto/fips_enabled to simulate FIPS
+        _real_open = open
+        def _fips_open(file, *args, **kwargs):
+            if str(file) == "/proc/sys/crypto/fips_enabled":
+                return io.StringIO("1\\n")
+            return _real_open(file, *args, **kwargs)
+
+        import builtins
+        builtins.open = _fips_open
+
+        # Track import order to verify env var is set before pyarrow.flight
+        original_import = builtins.__import__
+        def tracking_import(name, *args, **kwargs):
+            if name == "pyarrow.flight":
+                assert "GRPC_SSL_CIPHER_SUITES" in os.environ, (
+                    "GRPC_SSL_CIPHER_SUITES not set before pyarrow.flight import"
+                )
+            return original_import(name, *args, **kwargs)
+
+        builtins.__import__ = tracking_import
+        try:
+            import feast.offline_server
+            assert "GRPC_SSL_CIPHER_SUITES" in os.environ
+            assert "DHE-RSA-AES128-GCM-SHA256" in os.environ["GRPC_SSL_CIPHER_SUITES"]
+        finally:
+            builtins.__import__ = original_import
+            builtins.open = _real_open
+    """)
+    env = os.environ.copy()
+    env.pop("GRPC_SSL_CIPHER_SUITES", None)
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=60,
+    )
+    assert result.returncode == 0, (
+        f"Subprocess failed:\nstdout: {result.stdout}\nstderr: {result.stderr}"
+    )
