@@ -1,5 +1,5 @@
 # Stage 1: Build with full Python 312 image (includes compilers and dev tools)
-FROM registry.access.redhat.com/ubi9/python-312:1@sha256:105e70cb265e82beef1687b87b77444a05b410c55d8631e9aa9aa6804fcca45d AS builder
+FROM registry.access.redhat.com/ubi9/python-312:1@sha256:5b0c67feb3f2e5637c6301ea22e2839d402dd71d88c3cec8d1fd278ce0f9e69a AS builder
 
 USER 0
 
@@ -39,7 +39,7 @@ RUN SETUPTOOLS_SCM_PRETEND_VERSION=$(awk -F'==' 'NR==2{gsub(/[[:space:]]/,"",$2)
     pip install --no-deps '.[minimal]'
 
 # Stage 2: Minimal runtime image (no compilers or dev headers)
-FROM registry.access.redhat.com/ubi9/python-312-minimal:latest@sha256:392074eb92be352afd40e9a6620758a222911242c083f961edbb212010689c93
+FROM registry.access.redhat.com/ubi9/python-312-minimal:latest@sha256:033fff36c6452df9df576039755fb27558cee0fc7f39c44ad9a9505e8491a181
 
 USER 0
 
