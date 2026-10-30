@@ -35,6 +35,7 @@ import (
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	policyv1 "k8s.io/api/policy/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -100,6 +101,7 @@ func newCacheOptions() cache.Options {
 			&batchv1.CronJob{}:                       managedByFilter,
 			&autoscalingv2.HorizontalPodAutoscaler{}: managedByFilter,
 			&policyv1.PodDisruptionBudget{}:          managedByFilter,
+			&networkingv1.NetworkPolicy{}:            managedByFilter,
 		},
 	}
 }
@@ -213,6 +215,7 @@ func main() {
 					&batchv1.CronJob{},
 					&autoscalingv2.HorizontalPodAutoscaler{},
 					&policyv1.PodDisruptionBudget{},
+					&networkingv1.NetworkPolicy{},
 				},
 			},
 		},

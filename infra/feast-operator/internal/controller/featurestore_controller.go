@@ -20,23 +20,27 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"regexp"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	policyv1 "k8s.io/api/policy/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -44,6 +48,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	feastdevv1 "github.com/feast-dev/feast/infra/feast-operator/api/v1"
 	"github.com/feast-dev/feast/infra/feast-operator/internal/controller/access"
@@ -61,6 +66,22 @@ const (
 	RequeueDelayError       = 5 * time.Second
 	RequeuePeriodicInterval = 30 * time.Second
 )
+
+// feastProjectPattern is the CRD pattern on spec.feastProject and status.applied.feastProject.
+var feastProjectPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
+
+// ensureAppliedFeastProject keeps status.applied.feastProject valid so a status
+// update that reports a rejection is accepted by the API server.
+func ensureAppliedFeastProject(cr *feastdevv1.FeatureStore) {
+	if feastProjectPattern.MatchString(cr.Status.Applied.FeastProject) {
+		return
+	}
+	if feastProjectPattern.MatchString(cr.Spec.FeastProject) {
+		cr.Status.Applied.FeastProject = cr.Spec.FeastProject
+		return
+	}
+	cr.Status.Applied.FeastProject = services.DataRegistryProject
+}
 
 // FeatureStoreReconciler reconciles a FeatureStore object
 type FeatureStoreReconciler struct {
@@ -99,6 +120,7 @@ type FeatureStoreReconciler struct {
 // +kubebuilder:rbac:groups=batch,resources=cronjobs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=autoscaling,resources=horizontalpodautoscalers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=policy,resources=poddisruptionbudgets,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=monitoring.coreos.com,resources=servicemonitors,verbs=get;list;watch;create;patch;delete
 // +kubebuilder:rbac:groups=mlflow.opendatahub.io,resources=mlflows,verbs=get;list;watch
 
@@ -119,6 +141,13 @@ func (r *FeatureStoreReconciler) Reconcile(ctx context.Context, req ctrl.Request
 				r.Metrics.DeleteFeatureStore(req.NamespacedName.Namespace, req.NamespacedName.Name)
 			}
 			r.cleanupOnDeletion(ctx, req.NamespacedName.Namespace, req.NamespacedName.Name)
+			// A deleted CR no longer triggers reconciles — the capabilities
+			// ConfigMap watch enqueues only existing CRs — so this not-found
+			// pass is the last chance to release the ConfigMap finalizer for
+			// the module operator uninstall handshake.
+			if relErr := r.reconcileCapabilitiesConfigOnCRRemoval(ctx, types.NamespacedName{}); relErr != nil {
+				return ctrl.Result{}, relErr
+			}
 			return ctrl.Result{}, nil
 		}
 		logger.Error(err, "Unable to get FeatureStore CR")
@@ -130,39 +159,19 @@ func (r *FeatureStoreReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		if r.Metrics != nil {
 			r.Metrics.DeleteFeatureStore(cr.Namespace, cr.Name)
 		}
-		// Handle the data-registry finalizer before namespace-scoped GC:
-		// cluster-scoped ClusterRoles and CRBs have no owner references and would
-		// be orphaned if we skipped this step and the pod restarted.
-		if controllerutil.ContainsFinalizer(cr, services.DataRegistryFinalizer) {
-			feast := services.FeastServices{
-				Handler: feasthandler.FeastHandler{
-					Client:       r.Client,
-					Context:      ctx,
-					FeatureStore: cr,
-					Scheme:       r.Scheme,
-				},
-			}
-			if err := feast.CleanupDataRegistryClusterRoles(); err != nil {
-				logger.Error(err, "Failed to cleanup data registry ClusterRoles during finalizer handling")
-				return ctrl.Result{}, err
-			}
-			if err := feast.CleanupDataRegistryAuthDelegatorBinding(); err != nil {
-				logger.Error(err, "Failed to cleanup data registry auth-delegator binding during finalizer handling")
-				return ctrl.Result{}, err
-			}
-			controllerutil.RemoveFinalizer(cr, services.DataRegistryFinalizer)
-			if err := r.Update(ctx, cr); err != nil {
-				return ctrl.Result{}, err
-			}
-		}
-		r.cleanupOnDeletion(ctx, cr.Namespace, cr.Name)
-		return ctrl.Result{}, nil
+		return ctrl.Result{}, r.finalizeFeatureStore(ctx, cr)
 	}
 
 	result, recErr = r.deployFeast(ctx, cr)
 	if recErr == nil && r.Metrics != nil {
 		r.Metrics.RecordFeatureStore(cr)
 	}
+	// status.applied is a FeatureStoreSpec, so feastProject must match the CRD
+	// pattern. Early returns (wrong data-registry name, missing annotation)
+	// never run ApplyDefaults, and dropping the finalizer clears status.
+	// An empty project makes the status update invalid, so the rejection
+	// condition never persists and the CR looks ignored.
+	ensureAppliedFeastProject(cr)
 	if cr.DeletionTimestamp == nil && !reflect.DeepEqual(currentStatus, cr.Status) {
 		if err = r.Client.Status().Update(ctx, cr); err != nil {
 			if apierrors.IsConflict(err) {
@@ -210,6 +219,51 @@ func (r *FeatureStoreReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	return result, recErr
 }
 
+// finalizeFeatureStore completes the removal of a deleting FeatureStore CR.
+// The data-registry finalizer is dropped first: cluster-scoped ClusterRoles
+// and CRBs have no owner references and would be orphaned if this pod
+// restarted. The CR's own registry and discovery cleanup runs next, and only
+// then is the capabilities ConfigMap finalizer released — the module operator
+// uninstalls this operator once that finalizer is gone, so cleanup has to
+// finish first. The CR delete event still enqueues one not-found reconcile
+// that releases again if this attempt did not.
+func (r *FeatureStoreReconciler) finalizeFeatureStore(ctx context.Context, cr *feastdevv1.FeatureStore) error {
+	logger := log.FromContext(ctx)
+	// cleaned is set only after the data-registry finalizer is removed, so
+	// the hold check can ignore the informer's stale copy of this object.
+	var cleaned types.NamespacedName
+	if controllerutil.ContainsFinalizer(cr, services.DataRegistryFinalizer) {
+		feast := services.FeastServices{
+			Handler: feasthandler.FeastHandler{
+				Client:       r.Client,
+				Context:      ctx,
+				FeatureStore: cr,
+				Scheme:       r.Scheme,
+			},
+		}
+		if err := feast.CleanupDataRegistryClusterRoles(); err != nil {
+			logger.Error(err, "Failed to cleanup data registry ClusterRoles during finalizer handling")
+			return err
+		}
+		if err := feast.CleanupDataRegistryAuthDelegatorBinding(); err != nil {
+			logger.Error(err, "Failed to cleanup data registry auth-delegator binding during finalizer handling")
+			return err
+		}
+		controllerutil.RemoveFinalizer(cr, services.DataRegistryFinalizer)
+		if err := r.Update(ctx, cr); err != nil {
+			return err
+		}
+		// The Update is in the API, but the List below reads the informer
+		// cache, which still has the finalizer until this write is
+		// observed. Pass the key so that stale copy cannot keep the
+		// ConfigMap finalizer held if this object is then deleted and
+		// no later reconcile runs.
+		cleaned = client.ObjectKeyFromObject(cr)
+	}
+	r.cleanupOnDeletion(ctx, cr.Namespace, cr.Name)
+	return r.reconcileCapabilitiesConfigOnCRRemoval(ctx, cleaned)
+}
+
 func (r *FeatureStoreReconciler) fetchPermissionsFromRegistry(ctx context.Context, cr *feastdevv1.FeatureStore) ([]registry.PermissionPolicy, error) {
 	logger := log.FromContext(ctx)
 	registryRest := cr.Status.ServiceHostnames.RegistryRest
@@ -254,6 +308,12 @@ func (r *FeatureStoreReconciler) addToNamespaceRegistry(ctx context.Context, cr 
 			FeatureStore: cr,
 			Scheme:       r.Scheme,
 		},
+	}
+	if services.IsDataRegistryCREnabled(cr) {
+		if err := feast.RemoveFromNamespaceRegistry(); err != nil {
+			logger.Error(err, "Failed to remove data registry from namespace registry")
+		}
+		return
 	}
 	if err := feast.AddToNamespaceRegistry(); err != nil {
 		logger.Error(err, "Failed to add feature store to namespace registry")
@@ -362,6 +422,268 @@ func (r *FeatureStoreReconciler) countOtherFeatureStoresInCluster(ctx context.Co
 	return count
 }
 
+// removeRejectedDataRegistryWorkload deletes the data-registry workload and
+// drops this FeatureStore from feature-store discovery. Discovery is removed
+// only after the workload is gone, so a failed delete is retried while the
+// entry is still present. Callers write status after this returns: removing
+// the finalizer updates the CR, and that response replaces .status.
+func removeRejectedDataRegistryWorkload(feast services.FeastServices) (cleanupErr, registryErr error) {
+	cleanupErr = feast.CleanupDataRegistry()
+	if cleanupErr != nil {
+		return cleanupErr, nil
+	}
+	// Older operators registered this CR for feature-store discovery. The
+	// Service is gone; the discovery entry has to go with it or workbenches
+	// keep a dead endpoint.
+	return nil, feast.RemoveFromNamespaceRegistry()
+}
+
+// reconcileCapabilitiesConfigFinalizer manages this operator's finalizer on
+// the platform capabilities ConfigMap, implementing the deletion handshake
+// with feast-module-operator:
+//   - healthy ConfigMap: the finalizer is ensured (idempotent) so a later
+//     deletion cannot complete without this operator observing it;
+//   - Terminating ConfigMap with the capabilities still enabled (manual
+//     deletion, recreated by the module operator): the finalizer is released
+//     without any teardown so the recreation can proceed;
+//   - Terminating ConfigMap with the capabilities disabled (module operator
+//     uninstall intent): the finalizer is held until no data-registry
+//     FeatureStore CR still carries the DataRegistryFinalizer, i.e. until the
+//     Data Registry cleanup triggered by the capability gates has finished.
+//
+// cleaned is the FeatureStore whose cleanup finalizer this reconcile already
+// removed. An empty name excludes nothing. The informer cache still lists
+// that finalizer until the update is observed, and trusting it would hold
+// the ConfigMap finalizer on an object that is about to disappear.
+func (r *FeatureStoreReconciler) reconcileCapabilitiesConfigFinalizer(ctx context.Context, caps capabilities.Config, cleaned types.NamespacedName) error {
+	if !caps.PlatformConfigPresent {
+		return nil
+	}
+
+	if !caps.PlatformConfigTerminating {
+		return r.ensureCapabilitiesConfigFinalizer(ctx)
+	}
+
+	if caps.DataRegistryEnabled {
+		// Deletion without teardown intent: let the module operator's
+		// ConfigMap recreation proceed.
+		return r.removeCapabilitiesConfigFinalizer(ctx)
+	}
+
+	// Teardown intent: hold the finalizer until every data-registry
+	// FeatureStore CR has dropped its cleanup finalizer, i.e. until the
+	// Data Registry workload and cluster-scoped RBAC are gone.
+	//
+	// Returning without an error does not end the handshake. While a
+	// FeatureStore still exists, the capabilities ConfigMap watch and that
+	// CR's 30s periodic requeue both run this check again, and removing the
+	// cleanup finalizer is itself a FeatureStore update. A CR that is
+	// deleted is released from the deletion and not-found paths.
+	var list feastdevv1.FeatureStoreList
+	if err := r.List(ctx, &list); err != nil {
+		return fmt.Errorf("failed to list FeatureStores for capabilities teardown check: %w", err)
+	}
+	for i := range list.Items {
+		item := &list.Items[i]
+		if cleaned.Name != "" && item.Name == cleaned.Name && item.Namespace == cleaned.Namespace {
+			continue
+		}
+		if !services.IsDataRegistryCREnabled(item) {
+			continue
+		}
+		if controllerutil.ContainsFinalizer(item, services.DataRegistryFinalizer) {
+			// Data Registry cleanup still in flight; keep holding.
+			return nil
+		}
+	}
+
+	return r.removeCapabilitiesConfigFinalizer(ctx)
+}
+
+// reconcileCapabilitiesConfigOnCRRemoval manages the capabilities ConfigMap
+// finalizer while a FeatureStore CR is being removed. The ConfigMap watch
+// mapper enqueues only existing CRs, so the deletion and not-found paths are
+// what release this operator's finalizer after the CR is gone. cleaned is
+// forwarded to the hold check; see reconcileCapabilitiesConfigFinalizer.
+// A missing or unreadable ConfigMap is skipped: it must never block CR deletion.
+func (r *FeatureStoreReconciler) reconcileCapabilitiesConfigOnCRRemoval(ctx context.Context, cleaned types.NamespacedName) error {
+	logger := log.FromContext(ctx)
+	caps, err := capabilities.Load(ctx, r.Client)
+	if err != nil {
+		logger.V(1).Info("Skipping capabilities ConfigMap finalizer handling during CR removal",
+			"reason", err.Error())
+		return nil
+	}
+	return r.reconcileCapabilitiesConfigFinalizer(ctx, caps, cleaned)
+}
+
+// ensureCapabilitiesConfigFinalizer adds the capabilities ConfigMap finalizer
+// when absent. The ConfigMap must not be terminating: the API server rejects
+// adding finalizers to objects being deleted, and a recreated ConfigMap is
+// re-adopted by a later reconcile.
+func (r *FeatureStoreReconciler) ensureCapabilitiesConfigFinalizer(ctx context.Context) error {
+	cm := &corev1.ConfigMap{}
+	if err := r.Get(ctx, types.NamespacedName{
+		Name:      capabilities.ConfigMapName,
+		Namespace: capabilities.OperatorNamespace(),
+	}, cm); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to read %s ConfigMap: %w", capabilities.ConfigMapName, err)
+	}
+	if cm.DeletionTimestamp != nil || controllerutil.ContainsFinalizer(cm, capabilities.CapabilitiesConfigFinalizer) {
+		return nil
+	}
+	controllerutil.AddFinalizer(cm, capabilities.CapabilitiesConfigFinalizer)
+	if err := r.Update(ctx, cm); err != nil {
+		return fmt.Errorf("failed to add finalizer to %s ConfigMap: %w", capabilities.ConfigMapName, err)
+	}
+	return nil
+}
+
+// removeCapabilitiesConfigFinalizer removes the capabilities ConfigMap
+// finalizer from a Terminating ConfigMap. A ConfigMap that is no longer
+// terminating (recreated) is left untouched so a later reconcile re-adopts it.
+func (r *FeatureStoreReconciler) removeCapabilitiesConfigFinalizer(ctx context.Context) error {
+	cm := &corev1.ConfigMap{}
+	if err := r.Get(ctx, types.NamespacedName{
+		Name:      capabilities.ConfigMapName,
+		Namespace: capabilities.OperatorNamespace(),
+	}, cm); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to read %s ConfigMap: %w", capabilities.ConfigMapName, err)
+	}
+	if cm.DeletionTimestamp == nil || !controllerutil.ContainsFinalizer(cm, capabilities.CapabilitiesConfigFinalizer) {
+		return nil
+	}
+	controllerutil.RemoveFinalizer(cm, capabilities.CapabilitiesConfigFinalizer)
+	if err := r.Update(ctx, cm); err != nil {
+		return fmt.Errorf("failed to remove finalizer from %s ConfigMap: %w", capabilities.ConfigMapName, err)
+	}
+	return nil
+}
+
+// guardDataRegistry applies data-registry admission. stop is true when
+// deployFeast must return without deploying.
+func (r *FeatureStoreReconciler) guardDataRegistry(ctx context.Context, cr *feastdevv1.FeatureStore, caps capabilities.Config) (ctrl.Result, bool, error) {
+	logger := log.FromContext(ctx)
+	feast := services.FeastServices{
+		Handler: feasthandler.FeastHandler{
+			Client:       r.Client,
+			Context:      ctx,
+			FeatureStore: cr,
+			Scheme:       r.Scheme,
+		},
+	}
+
+	if !caps.DataRegistryEnabled {
+		// Delete the workload before writing status. Dropping the
+		// data-registry finalizer updates the CR, and that update
+		// response replaces .status with the persisted status.
+		cleanupErr, registryErr := removeRejectedDataRegistryWorkload(feast)
+
+		drCond := services.FeastServiceConditions[services.DataRegistryFeastType][metav1.ConditionFalse]
+		drCond.Reason = feastdevv1.DataRegistryDisabledReason
+		drCond.Message = services.ErrorMessagePrefix + feastdevv1.DataRegistryDisabledMessage
+		apimeta.SetStatusCondition(&cr.Status.Conditions, drCond)
+		condition := metav1.Condition{
+			Type:    feastdevv1.ReadyType,
+			Status:  metav1.ConditionFalse,
+			Reason:  feastdevv1.DataRegistryDisabledReason,
+			Message: feastdevv1.DataRegistryDisabledMessage,
+		}
+		apimeta.SetStatusCondition(&cr.Status.Conditions, condition)
+		cr.Status.Phase = feastdevv1.FailedPhase
+		logger.Info(condition.Message)
+
+		if cleanupErr != nil {
+			logger.Error(cleanupErr, "Failed to cleanup data registry resources after capability disabled")
+			return ctrl.Result{RequeueAfter: RequeueDelayError}, true, cleanupErr
+		}
+		if registryErr != nil {
+			logger.Error(registryErr, "Failed to remove data registry from namespace registry after capability disabled")
+			return ctrl.Result{RequeueAfter: RequeueDelayError}, true, registryErr
+		}
+		return ctrl.Result{}, true, nil
+	}
+
+	// Data-registry mode deploys only the FeatureStore named data-registry.
+	// Reject any other name before the namespace check.
+	if cr.Name != services.DataRegistryCRName {
+		cleanupErr, registryErr := removeRejectedDataRegistryWorkload(feast)
+
+		rejMsg := fmt.Sprintf(feastdevv1.DataRegistryNameRejectedMessage,
+			services.DataRegistryCRName, cr.Name)
+		drCond := services.FeastServiceConditions[services.DataRegistryFeastType][metav1.ConditionFalse]
+		drCond.Reason = feastdevv1.DataRegistryNameRejectedReason
+		drCond.Message = services.ErrorMessagePrefix + rejMsg
+		apimeta.SetStatusCondition(&cr.Status.Conditions, drCond)
+		condition := metav1.Condition{
+			Type:    feastdevv1.ReadyType,
+			Status:  metav1.ConditionFalse,
+			Reason:  feastdevv1.DataRegistryNameRejectedReason,
+			Message: rejMsg,
+		}
+		apimeta.SetStatusCondition(&cr.Status.Conditions, condition)
+		cr.Status.Phase = feastdevv1.FailedPhase
+		logger.Info("Data Registry name rejected",
+			"cr", cr.Name, "requiredName", services.DataRegistryCRName)
+
+		if cleanupErr != nil {
+			logger.Error(cleanupErr, "Failed to cleanup data registry resources after name rejection")
+			return ctrl.Result{RequeueAfter: RequeueDelayError}, true, cleanupErr
+		}
+		if registryErr != nil {
+			logger.Error(registryErr, "Failed to remove data registry from namespace registry after name rejection")
+			return ctrl.Result{RequeueAfter: RequeueDelayError}, true, registryErr
+		}
+		return ctrl.Result{}, true, nil
+	}
+
+	// Enforce exact namespace match. The data-registry namespace is always
+	// rhoai-data-registry (custom namespace selection is deferred). The
+	// check runs regardless of whether the ConfigMap is present because
+	// caps.DataRegistryNamespace defaults to rhoai-data-registry.
+	if cr.Namespace != caps.DataRegistryNamespace {
+		// The expected namespace can change, and an older operator may already
+		// have deployed this CR. Leave neither the workload nor its discovery
+		// entry behind.
+		cleanupErr, registryErr := removeRejectedDataRegistryWorkload(feast)
+
+		rejMsg := fmt.Sprintf(feastdevv1.DataRegistryNamespaceRejectedMessage,
+			caps.DataRegistryNamespace, cr.Namespace)
+		drCond := services.FeastServiceConditions[services.DataRegistryFeastType][metav1.ConditionFalse]
+		drCond.Reason = feastdevv1.DataRegistryNamespaceRejectedReason
+		drCond.Message = services.ErrorMessagePrefix + rejMsg
+		apimeta.SetStatusCondition(&cr.Status.Conditions, drCond)
+		condition := metav1.Condition{
+			Type:    feastdevv1.ReadyType,
+			Status:  metav1.ConditionFalse,
+			Reason:  feastdevv1.DataRegistryNamespaceRejectedReason,
+			Message: rejMsg,
+		}
+		apimeta.SetStatusCondition(&cr.Status.Conditions, condition)
+		cr.Status.Phase = feastdevv1.FailedPhase
+		logger.Info("Data Registry namespace rejected",
+			"cr", cr.Name, "crNamespace", cr.Namespace,
+			"expectedNamespace", caps.DataRegistryNamespace)
+
+		if cleanupErr != nil {
+			logger.Error(cleanupErr, "Failed to cleanup data registry resources after namespace rejection")
+			return ctrl.Result{RequeueAfter: RequeueDelayError}, true, cleanupErr
+		}
+		if registryErr != nil {
+			logger.Error(registryErr, "Failed to remove data registry from namespace registry after namespace rejection")
+			return ctrl.Result{RequeueAfter: RequeueDelayError}, true, registryErr
+		}
+		return ctrl.Result{}, true, nil
+	}
+	return ctrl.Result{}, false, nil
+}
+
 func (r *FeatureStoreReconciler) deployFeast(ctx context.Context, cr *feastdevv1.FeatureStore) (result ctrl.Result, err error) {
 	logger := log.FromContext(ctx)
 	condition := metav1.Condition{
@@ -392,7 +714,41 @@ func (r *FeatureStoreReconciler) deployFeast(ctx context.Context, cr *feastdevv1
 		return ctrl.Result{Requeue: true, RequeueAfter: RequeueDelayError}, capErr
 	}
 
+	// Manage this operator's finalizer on the capabilities ConfigMap before
+	// any capability gating: on a healthy ConfigMap the finalizer is ensured
+	// so a later deletion cannot bypass this operator; on a Terminating
+	// ConfigMap it is released once the Data Registry cleanup signaled by the
+	// disabled capability flags has completed, or immediately when the
+	// deletion carries no teardown intent (manual deletion, recreated by the
+	// module operator).
+	if err := r.reconcileCapabilitiesConfigFinalizer(ctx, caps, types.NamespacedName{}); err != nil {
+		condition = metav1.Condition{
+			Type:    feastdevv1.ReadyType,
+			Status:  metav1.ConditionFalse,
+			Reason:  feastdevv1.FailedReason,
+			Message: "Error: " + err.Error(),
+		}
+		apimeta.SetStatusCondition(&cr.Status.Conditions, condition)
+		cr.Status.Phase = feastdevv1.FailedPhase
+		return ctrl.Result{RequeueAfter: RequeueDelayError}, err
+	}
+
 	if cr.Namespace == caps.DataRegistryNamespace && !services.IsDataRegistryCREnabled(cr) {
+		feast := services.FeastServices{Handler: feasthandler.FeastHandler{
+			Client: r.Client, Context: ctx, FeatureStore: cr, Scheme: r.Scheme,
+		}}
+		// Cleanup may update the CR to drop its finalizer. That update
+		// response replaces .status, so the rejection is recorded after it.
+		drCleanupErr := feast.CleanupDataRegistry()
+		var stdCleanupErr error
+		var registryErr error
+		if drCleanupErr == nil {
+			stdCleanupErr = feast.CleanupStandardResources()
+		}
+		if drCleanupErr == nil && stdCleanupErr == nil {
+			registryErr = feast.RemoveFromNamespaceRegistry()
+		}
+
 		drCond := services.FeastServiceConditions[services.DataRegistryFeastType][metav1.ConditionFalse]
 		drCond.Reason = feastdevv1.DataRegistryAnnotationRequiredReason
 		drCond.Message = services.ErrorMessagePrefix + feastdevv1.DataRegistryAnnotationRequiredMessage
@@ -405,74 +761,22 @@ func (r *FeatureStoreReconciler) deployFeast(ctx context.Context, cr *feastdevv1
 		}
 		apimeta.SetStatusCondition(&cr.Status.Conditions, condition)
 		cr.Status.Phase = feastdevv1.FailedPhase
-		feast := services.FeastServices{Handler: feasthandler.FeastHandler{
-			Client: r.Client, Context: ctx, FeatureStore: cr, Scheme: r.Scheme,
-		}}
-		if cleanupErr := feast.CleanupDataRegistry(); cleanupErr != nil {
-			return ctrl.Result{RequeueAfter: RequeueDelayError}, cleanupErr
+
+		if drCleanupErr != nil {
+			return ctrl.Result{RequeueAfter: RequeueDelayError}, drCleanupErr
 		}
-		if cleanupErr := feast.CleanupStandardResources(); cleanupErr != nil {
-			return ctrl.Result{RequeueAfter: RequeueDelayError}, cleanupErr
+		if stdCleanupErr != nil {
+			return ctrl.Result{RequeueAfter: RequeueDelayError}, stdCleanupErr
+		}
+		if registryErr != nil {
+			return ctrl.Result{RequeueAfter: RequeueDelayError}, registryErr
 		}
 		return ctrl.Result{}, nil
 	}
 
 	if services.IsDataRegistryCREnabled(cr) {
-		if !caps.DataRegistryEnabled {
-			drCond := services.FeastServiceConditions[services.DataRegistryFeastType][metav1.ConditionFalse]
-			drCond.Reason = feastdevv1.DataRegistryDisabledReason
-			drCond.Message = services.ErrorMessagePrefix + feastdevv1.DataRegistryDisabledMessage
-			apimeta.SetStatusCondition(&cr.Status.Conditions, drCond)
-			condition = metav1.Condition{
-				Type:    feastdevv1.ReadyType,
-				Status:  metav1.ConditionFalse,
-				Reason:  feastdevv1.DataRegistryDisabledReason,
-				Message: feastdevv1.DataRegistryDisabledMessage,
-			}
-			apimeta.SetStatusCondition(&cr.Status.Conditions, condition)
-			cr.Status.Phase = feastdevv1.FailedPhase
-			logger.Info(condition.Message)
-
-			// Clean up data-registry owned resources so they don't remain
-			// active while the CR reports the capability as disabled.
-			feast := services.FeastServices{
-				Handler: feasthandler.FeastHandler{
-					Client:       r.Client,
-					Context:      ctx,
-					FeatureStore: cr,
-					Scheme:       r.Scheme,
-				},
-			}
-			if cleanupErr := feast.CleanupDataRegistry(); cleanupErr != nil {
-				logger.Error(cleanupErr, "Failed to cleanup data registry resources after capability disabled")
-				return ctrl.Result{RequeueAfter: RequeueDelayError}, cleanupErr
-			}
-
-			return ctrl.Result{}, nil
-		}
-		// Enforce exact namespace match. The data-registry namespace is always
-		// rhoai-data-registry (custom namespace selection is deferred). The
-		// check runs regardless of whether the ConfigMap is present because
-		// caps.DataRegistryNamespace defaults to rhoai-data-registry.
-		if cr.Namespace != caps.DataRegistryNamespace {
-			rejMsg := fmt.Sprintf(feastdevv1.DataRegistryNamespaceRejectedMessage,
-				caps.DataRegistryNamespace, cr.Namespace)
-			drCond := services.FeastServiceConditions[services.DataRegistryFeastType][metav1.ConditionFalse]
-			drCond.Reason = feastdevv1.DataRegistryNamespaceRejectedReason
-			drCond.Message = services.ErrorMessagePrefix + rejMsg
-			apimeta.SetStatusCondition(&cr.Status.Conditions, drCond)
-			condition = metav1.Condition{
-				Type:    feastdevv1.ReadyType,
-				Status:  metav1.ConditionFalse,
-				Reason:  feastdevv1.DataRegistryNamespaceRejectedReason,
-				Message: rejMsg,
-			}
-			apimeta.SetStatusCondition(&cr.Status.Conditions, condition)
-			cr.Status.Phase = feastdevv1.FailedPhase
-			logger.Info("Data Registry namespace rejected",
-				"cr", cr.Name, "crNamespace", cr.Namespace,
-				"expectedNamespace", caps.DataRegistryNamespace)
-			return ctrl.Result{}, nil
+		if gateResult, stop, gateErr := r.guardDataRegistry(ctx, cr, caps); stop {
+			return gateResult, gateErr
 		}
 	} else if !caps.FeatureStoreEnabled {
 		condition = metav1.Condition{
@@ -561,6 +865,11 @@ func (r *FeatureStoreReconciler) deployFeast(ctx context.Context, cr *feastdevv1
 		}
 	}
 
+	if services.IsDataRegistryCREnabled(cr) &&
+		condition.Type == feastdevv1.ReadyType &&
+		condition.Status == metav1.ConditionTrue {
+		condition.Message = feastdevv1.DataRegistryReadyStatusMessage
+	}
 	logger.Info(condition.Message)
 	apimeta.SetStatusCondition(&cr.Status.Conditions, condition)
 	if apimeta.IsStatusConditionTrue(cr.Status.Conditions, feastdevv1.ReadyType) {
@@ -588,6 +897,7 @@ func (r *FeatureStoreReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&batchv1.CronJob{}).
 		Owns(&autoscalingv2.HorizontalPodAutoscaler{}).
 		Owns(&policyv1.PodDisruptionBudget{}).
+		Owns(&networkingv1.NetworkPolicy{}).
 		Watches(&feastdevv1.FeatureStore{}, handler.EnqueueRequestsFromMapFunc(r.mapFeastRefsToFeastRequests))
 
 	if services.IsOpenShift() {
@@ -616,11 +926,24 @@ func (r *FeatureStoreReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	if capsNS := capabilities.OperatorNamespace(); capsNS != "" {
-		bldr = bldr.Watches(
+		// Watches() uses the manager cache. That cache lists ConfigMaps only
+		// when they carry app.kubernetes.io/managed-by=feast-operator, and
+		// feast-capabilities-config is written by the module operator without
+		// that label, so those events never arrive. Watch the one object by
+		// name instead. Reads already bypass the filtered cache.
+		capsCache, err := newCapabilitiesConfigCache(mgr, capsNS)
+		if err != nil {
+			return fmt.Errorf("create capabilities ConfigMap cache: %w", err)
+		}
+		if err := mgr.Add(capsCache); err != nil {
+			return fmt.Errorf("start capabilities ConfigMap cache: %w", err)
+		}
+		bldr = bldr.WatchesRawSource(source.Kind[client.Object](
+			capsCache,
 			&corev1.ConfigMap{},
 			handler.EnqueueRequestsFromMapFunc(r.mapCapabilitiesConfigToFeatureStores),
-			builder.WithPredicates(capabilitiesConfigMapPredicate(capsNS)),
-		)
+			capabilitiesConfigMapPredicate(capsNS),
+		))
 	}
 
 	return bldr.Complete(r)
@@ -680,6 +1003,33 @@ func capabilitiesConfigMapPredicate(operatorNamespace string) predicate.Predicat
 	})
 }
 
+// capabilitiesConfigCacheOptions limits an informer to feast-capabilities-config
+// in the operator namespace. The object has no managed-by label, so it is not
+// in the manager's ConfigMap informer. No label selector is set: one would
+// hide the ConfigMap this watch exists to see.
+func capabilitiesConfigCacheOptions(namespace string) cache.Options {
+	return cache.Options{
+		DefaultNamespaces: map[string]cache.Config{
+			namespace: {
+				FieldSelector: fields.OneTermEqualSelector(metav1.ObjectNameField, capabilities.ConfigMapName),
+			},
+		},
+	}
+}
+
+func newCapabilitiesConfigCache(mgr ctrl.Manager, namespace string) (cache.Cache, error) {
+	opts := capabilitiesConfigCacheOptions(namespace)
+	opts.Scheme = mgr.GetScheme()
+	opts.Mapper = mgr.GetRESTMapper()
+	opts.HTTPClient = mgr.GetHTTPClient()
+	return cache.New(mgr.GetConfig(), opts)
+}
+
+// mapCapabilitiesConfigToFeatureStores enqueues every FeatureStore so any
+// surviving CR can finish the ConfigMap handshake. An empty list enqueues
+// nothing: a CR deleted in this process is released by its not-found
+// reconcile, and a cluster that already has no FeatureStores falls through
+// to the module operator's uninstall timeout.
 func (r *FeatureStoreReconciler) mapCapabilitiesConfigToFeatureStores(ctx context.Context, obj client.Object) []reconcile.Request {
 	cm, ok := obj.(*corev1.ConfigMap)
 	if !ok {

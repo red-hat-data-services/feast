@@ -244,6 +244,9 @@ func (feast *FeastServices) CleanupDataRegistryResources() error {
 			return err
 		}
 	}
+	if err := feast.deleteAllNetworkPolicies(); err != nil {
+		return err
+	}
 	return nil
 }
 
