@@ -12,7 +12,8 @@
   "dependencies": {
     "astro": "^7.3.6",
     "d3": "^7.9.0",
-    "shiki": "^1.29.2"
+    "shiki": "^1.29.2",
+    "zod": "^4.6.7"
   },
   "overrides": {
     "smol-toml": "1.9.0",
