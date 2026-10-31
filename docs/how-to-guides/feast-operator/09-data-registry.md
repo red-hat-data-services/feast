@@ -18,11 +18,13 @@ metadata:
   annotations:
     dataregistry.opendatahub.io/enabled: "true"
 spec:
+  # Required by the CRD. Ignored in data-registry mode; the operator uses data_registry.
   feastProject: data_registry
 ```
 
 {% hint style="info" %}
-The example above uses the minimal configuration. All standalone FeatureStore
+The example above uses the minimal configuration. `metadata.name` must be `data-registry`.
+`spec.feastProject` is ignored in this mode. All other standalone FeatureStore
 customizations (registry backend, persistence, resources, TLS, etc.) are also
 available for data-registry CRs. For instance, to use a SQL-backed registry:
 
@@ -49,6 +51,20 @@ See [Guide 1 — Basic](01-basic.md) and [Guide 5 — Security](05-security.md)
 for the full set of configuration options.
 {% endhint %}
 
+The annotated FeatureStore must be named `data-registry`. Any other `metadata.name` is
+rejected with `Ready=False` and `DataRegistry=False` (`DataRegistryNameRejected`). The
+operator does not deploy a data-registry workload for that CR, and it removes one if it
+was created under an older release.
+
+`spec.feastProject` is still required by the CRD, but **data-registry mode ignores it**.
+The catalog server already uses the fixed project `data_registry`. Applying the value
+from the spec would register that name as a feature store and the UI would show it
+with empty counts. The operator always sets `status.applied.feastProject`, `FEAST_PROJECT`,
+and `feature_store.yaml` `project` to `data_registry`. `spec.feastProject` is left as written.
+
+When the data-registry deployment is ready, the FeatureStore and DataRegistry conditions
+report: `You are running in data registry mode, feastProject value will be ignored`.
+
 Two prerequisites must be met before the annotation takes effect:
 
 1. **Namespace label** — the namespace must carry `opendatahub.io/data-registry=true`.
@@ -56,7 +72,7 @@ Two prerequisites must be met before the annotation takes effect:
    end users.
 2. **Singleton** — only one annotated FeatureStore CR is allowed cluster-wide. If a second
    CR carries the annotation, it is rejected with `DataRegistryReady=False`. The oldest CR
-   (by `metadata.creationTimestamp`) wins.
+   (by `metadata.creationTimestamp`) wins. The CR must still be named `data-registry`.
 
 ### Annotation strictness
 
@@ -173,9 +189,10 @@ and Grafana dashboard patterns.
 ## Mode transition — important warnings
 
 {% hint style="warning" %}
-**Enabling data-registry mode on an existing FeatureStore CR cleans up standard-mode
+**Enabling data-registry mode on the `data-registry` FeatureStore CR cleans up standard-mode
 resources** (Deployment, Services, HPAs) to avoid orphaned objects. This is by design — the
-data-registry CR runs a different workload.
+data-registry CR runs a different workload. A FeatureStore with any other name is rejected
+and its existing workload is left in place.
 
 Before annotating an existing CR:
 - **Back up any data** in online/offline stores if needed — the PVCs are preserved (the PVC
