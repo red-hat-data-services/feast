@@ -46,13 +46,13 @@ arches:
     name: glibc-devel
     evr: 2.34-283.el9_8
     sourcerpm: glibc-2.34-283.el9_8.src.rpm
-  - url: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/aarch64/appstream/os/Packages/k/kernel-headers-5.14.0-687.61.1.el9_8.aarch64.rpm
+  - url: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/aarch64/appstream/os/Packages/k/kernel-headers-5.14.0-687.64.1.el9_8.aarch64.rpm
     repoid: ubi-9-for-aarch64-appstream-rpms
-    size: 2955061
-    checksum: sha256:40ddd229d41cbb7f645a1c1b152e5af87b1ef9c1fb96aecc2373c95a2dbc8ca2
+    size: 2959549
+    checksum: sha256:fa39d84dbba31b364d73e3716c360e7c3eccd7e84543a9f6fef4606f1ec25a9b
     name: kernel-headers
-    evr: 5.14.0-687.61.1.el9_8
-    sourcerpm: kernel-5.14.0-687.61.1.el9_8.src.rpm
+    evr: 5.14.0-687.64.1.el9_8
+    sourcerpm: kernel-5.14.0-687.64.1.el9_8.src.rpm
   - url: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/aarch64/appstream/os/Packages/l/libasan-11.5.0-14.el9.aarch64.rpm
     repoid: ubi-9-for-aarch64-appstream-rpms
     size: 409047
