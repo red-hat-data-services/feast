@@ -93,9 +93,10 @@ caio==0.12.9 \
     --hash=sha256:ad225960d6bca52acfbf1e2b82ae6e3316540fae35291f319c4bf827fb4569fd \
     --hash=sha256:ec3464f2d8d607d3d3bcf86c0a2531312de1c8f865a9614436ce267a0e1a1024
     # via aiofile
-certifi==2026.7.22 \
-    --hash=sha256:e5fe15bb588e1de8f8caef013fbcf10c5e61c7f2a96ecba518df6c4d9acbdd7b
+certifi==2026.10.23 \
+    --hash=sha256:80cb263324c8d8cb1f4b3242205e0aaba63a4f61b2023cec54983608f1a2f3bb
     # via
+    #   -r requirements.in
     #   httpcore
     #   httpx
     #   kubernetes

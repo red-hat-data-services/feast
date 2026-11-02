@@ -40,6 +40,8 @@ numpy == 2.5.2
 pandas == 2.2.3
 pyarrow == 20.0.0
 
+certifi >= 2026.10.23
+
 # Build tools for hermetic `pip install --no-deps --no-build-isolation .`
 # setuptools upper bound matches pyproject.toml build-system.requires.
 setuptools >= 68.0, < 81
