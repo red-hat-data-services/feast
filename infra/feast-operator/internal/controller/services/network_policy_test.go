@@ -195,18 +195,46 @@ var _ = Describe("NetworkPolicy", func() {
 	})
 
 	Describe("buildDashboardIngressRules", func() {
-		It("should create a rule with namespace+pod selectors for Dashboard", func() {
+		It("should allow ODH and RHOAI dashboards from the applications namespace", func() {
 			ports := feast.collectDashboardPorts()
 			rules := buildDashboardIngressRules(ports)
-			Expect(rules).To(HaveLen(2))
-			for i, podLabel := range []string{dashboardPodLabel, dashboardPodLabelCurrent} {
-				Expect(rules[i].From).To(HaveLen(1))
-				peer := rules[i].From[0]
-				Expect(peer.NamespaceSelector.MatchLabels).To(HaveKeyWithValue(
+			Expect(rules).To(HaveLen(3))
+			for i, podLabel := range []string{dashboardPodLabelLegacy, dashboardPodLabelODH, dashboardPodLabelRHOAI} {
+				Expect(rules[i].From).To(HaveLen(2))
+				Expect(rules[i].From[0].NamespaceSelector.MatchLabels).To(HaveKeyWithValue(
 					dashboardNamespaceLabel, dashboardNamespaceValue,
 				))
-				Expect(peer.PodSelector.MatchLabels).To(HaveKeyWithValue(podLabel, "true"))
+				Expect(rules[i].From[1].NamespaceSelector.MatchLabels).To(HaveKeyWithValue(
+					customAppNamespaceLabel, customAppNamespaceValue,
+				))
+				for _, peer := range rules[i].From {
+					Expect(peer.PodSelector.MatchLabels).To(HaveKeyWithValue(podLabel, "true"))
+				}
+				Expect(rules[i].Ports).To(HaveLen(len(ports)))
+				Expect(rules[i].Ports[0].Port.IntVal).To(Equal(ports[0].Port.IntVal))
 			}
+		})
+	})
+
+	Describe("buildDataRegistryUIIngressRules", func() {
+		It("should allow the Data Registry UI from the applications namespace", func() {
+			ports := []*npac.NetworkPolicyPortApplyConfiguration{npPort(DataRegistryProxyPort)}
+			rules := buildDataRegistryUIIngressRules(ports)
+			Expect(rules).To(HaveLen(1))
+			Expect(rules[0].From).To(HaveLen(2))
+			Expect(rules[0].From[0].NamespaceSelector.MatchLabels).To(HaveKeyWithValue(
+				dashboardNamespaceLabel, dashboardNamespaceValue,
+			))
+			Expect(rules[0].From[1].NamespaceSelector.MatchLabels).To(HaveKeyWithValue(
+				customAppNamespaceLabel, customAppNamespaceValue,
+			))
+			for _, peer := range rules[0].From {
+				Expect(peer.PodSelector.MatchLabels).To(HaveKeyWithValue(
+					dataRegistryUIPodLabel, dataRegistryUIPodValue,
+				))
+			}
+			Expect(rules[0].Ports).To(HaveLen(1))
+			Expect(rules[0].Ports[0].Port.IntVal).To(Equal(DataRegistryProxyPort))
 		})
 	})
 
@@ -295,10 +323,20 @@ var _ = Describe("NetworkPolicy", func() {
 
 			dashNP := getNetworkPolicy(ctx, GetFeastName(featureStore)+npSuffixDashboard, featureStore.Namespace)
 			Expect(dashNP).NotTo(BeNil())
-			Expect(dashNP.Spec.Ingress).To(HaveLen(2))
-			Expect(dashNP.Spec.Ingress[0].From[0].NamespaceSelector.MatchLabels).To(HaveKeyWithValue(
-				dashboardNamespaceLabel, dashboardNamespaceValue,
-			))
+			Expect(dashNP.Spec.Ingress).To(HaveLen(3))
+			expectedDashLabels := []string{dashboardPodLabelLegacy, dashboardPodLabelODH, dashboardPodLabelRHOAI}
+			for i, podLabel := range expectedDashLabels {
+				Expect(dashNP.Spec.Ingress[i].From).To(HaveLen(2))
+				Expect(dashNP.Spec.Ingress[i].From[0].NamespaceSelector.MatchLabels).To(HaveKeyWithValue(
+					dashboardNamespaceLabel, dashboardNamespaceValue,
+				))
+				Expect(dashNP.Spec.Ingress[i].From[1].NamespaceSelector.MatchLabels).To(HaveKeyWithValue(
+					customAppNamespaceLabel, customAppNamespaceValue,
+				))
+				for _, peer := range dashNP.Spec.Ingress[i].From {
+					Expect(peer.PodSelector.MatchLabels).To(HaveKeyWithValue(podLabel, "true"))
+				}
+			}
 
 			workbenchNP := getNetworkPolicy(ctx, GetFeastName(featureStore)+npSuffixWorkbench, featureStore.Namespace)
 			Expect(workbenchNP).NotTo(BeNil())
@@ -492,6 +530,28 @@ var _ = Describe("NetworkPolicy", func() {
 			Expect(egressNP).NotTo(BeNil())
 			dataRegNP := getNetworkPolicy(ctx, GetFeastName(featureStore)+npSuffixDataReg, featureStore.Namespace)
 			Expect(dataRegNP).NotTo(BeNil())
+			Expect(dataRegNP.Spec.PodSelector.MatchLabels).To(HaveKeyWithValue(
+				NameLabelKey, featureStore.Name,
+			))
+			Expect(dataRegNP.Spec.PodSelector.MatchLabels).To(HaveKeyWithValue(
+				ServiceTypeLabelKey, string(DataRegistryFeastType),
+			))
+			Expect(dataRegNP.Spec.Ingress).To(HaveLen(1))
+			Expect(dataRegNP.Spec.Ingress[0].Ports).To(HaveLen(1))
+			Expect(dataRegNP.Spec.Ingress[0].Ports[0].Port.IntVal).To(Equal(DataRegistryProxyPort))
+			Expect(dataRegNP.Spec.Ingress[0].From).To(HaveLen(2))
+			Expect(dataRegNP.Spec.Ingress[0].From[0].PodSelector.MatchLabels).To(HaveKeyWithValue(
+				dataRegistryUIPodLabel, dataRegistryUIPodValue,
+			))
+			Expect(dataRegNP.Spec.Ingress[0].From[0].NamespaceSelector.MatchLabels).To(HaveKeyWithValue(
+				dashboardNamespaceLabel, dashboardNamespaceValue,
+			))
+			Expect(dataRegNP.Spec.Ingress[0].From[1].PodSelector.MatchLabels).To(HaveKeyWithValue(
+				dataRegistryUIPodLabel, dataRegistryUIPodValue,
+			))
+			Expect(dataRegNP.Spec.Ingress[0].From[1].NamespaceSelector.MatchLabels).To(HaveKeyWithValue(
+				customAppNamespaceLabel, customAppNamespaceValue,
+			))
 		})
 
 		It("should clean up standard-mode-only policies", func() {
