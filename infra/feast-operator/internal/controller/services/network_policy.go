@@ -44,10 +44,25 @@ const (
 	npSuffixCronJob    = "-cronjob"
 
 	// Labels used in cross-namespace selectors (not owned by us).
-	dashboardNamespaceLabel        = "platform.opendatahub.io/part-of"
-	dashboardNamespaceValue        = "workbenches"
-	dashboardPodLabel              = "app.opendatahub.io/dashboard"
-	dashboardPodLabelCurrent       = "app.opendatahub.io/odh-dashboard"
+	//
+	// The dashboard runs in the applications namespace. Default ODH
+	// (opendatahub) and RHOAI (redhat-ods-applications) namespaces are
+	// labeled generated-namespace. A pre-created applications namespace
+	// is labeled application-namespace instead, and the platform operator
+	// does not add generated-namespace to it.
+	dashboardNamespaceLabel = "opendatahub.io/generated-namespace"
+	dashboardNamespaceValue = "true"
+	customAppNamespaceLabel = "opendatahub.io/application-namespace"
+	customAppNamespaceValue = "true"
+	// Older ODH releases labeled the dashboard with the component name
+	// "dashboard". Current manifests use a platform-specific label.
+	dashboardPodLabelLegacy = "app.opendatahub.io/dashboard"
+	dashboardPodLabelODH    = "app.opendatahub.io/odh-dashboard"
+	dashboardPodLabelRHOAI  = "app.opendatahub.io/rhods-dashboard"
+	// Data Registry UI is a dashboard module pod, distinct from the main
+	// dashboard. The label is the same on ODH and RHOAI.
+	dataRegistryUIPodLabel         = "app.kubernetes.io/name"
+	dataRegistryUIPodValue         = "data-registry"
 	workbenchFeastIntegrationLabel = "opendatahub.io/feast-integration"
 	ingressNamespaceLabel          = "kubernetes.io/metadata.name"
 	ingressNamespaceValue          = "ingress-nginx"
@@ -214,11 +229,11 @@ func (feast *FeastServices) reconcileDataRegistryNetworkPolicies() error {
 		npPort(DataRegistryProxyPort),
 	}
 
-	// Dashboard cross-namespace → data-registry proxy.
+	// Data Registry UI (applications namespace) → data-registry proxy.
 	if err := feast.applyNetworkPolicy(
 		GetFeastName(cr)+npSuffixDataReg,
 		selectorLabels,
-		buildDashboardIngressRules(proxyPorts),
+		buildDataRegistryUIIngressRules(proxyPorts),
 	); err != nil {
 		return err
 	}
@@ -420,11 +435,17 @@ func buildSameNamespaceIngressRules(ports []*npac.NetworkPolicyPortApplyConfigur
 }
 
 func buildDashboardIngressRules(ports []*npac.NetworkPolicyPortApplyConfiguration) []*npac.NetworkPolicyIngressRuleApplyConfiguration {
+	podLabels := []string{dashboardPodLabelLegacy, dashboardPodLabelODH, dashboardPodLabelRHOAI}
+	rules := make([]*npac.NetworkPolicyIngressRuleApplyConfiguration, 0, len(podLabels))
+	for _, podLabel := range podLabels {
+		rules = append(rules, applicationsNamespaceIngressRule(podLabel, "true", ports))
+	}
+	return rules
+}
+
+func buildDataRegistryUIIngressRules(ports []*npac.NetworkPolicyPortApplyConfiguration) []*npac.NetworkPolicyIngressRuleApplyConfiguration {
 	return []*npac.NetworkPolicyIngressRuleApplyConfiguration{
-		dashboardIngressRule(dashboardPodLabel, ports),
-		// Dashboard deployments in the current ODH release use the more specific
-		// label below. Keep the older label for releases that still emit it.
-		dashboardIngressRule(dashboardPodLabelCurrent, ports),
+		applicationsNamespaceIngressRule(dataRegistryUIPodLabel, dataRegistryUIPodValue, ports),
 	}
 }
 
@@ -441,18 +462,25 @@ func buildWorkbenchIngressRules(ports []*npac.NetworkPolicyPortApplyConfiguratio
 	}
 }
 
-func dashboardIngressRule(podLabel string, ports []*npac.NetworkPolicyPortApplyConfiguration) *npac.NetworkPolicyIngressRuleApplyConfiguration {
+func applicationsNamespaceIngressRule(podLabel, podValue string, ports []*npac.NetworkPolicyPortApplyConfiguration) *npac.NetworkPolicyIngressRuleApplyConfiguration {
 	return npac.NetworkPolicyIngressRule().
-		WithFrom(npac.NetworkPolicyPeer().
-			WithNamespaceSelector(metaac.LabelSelector().
-				WithMatchLabels(map[string]string{
-					dashboardNamespaceLabel: dashboardNamespaceValue,
-				})).
-			WithPodSelector(metaac.LabelSelector().
-				WithMatchLabels(map[string]string{
-					podLabel: "true",
-				}))).
+		WithFrom(
+			crossNamespacePodPeer(dashboardNamespaceLabel, dashboardNamespaceValue, podLabel, podValue),
+			crossNamespacePodPeer(customAppNamespaceLabel, customAppNamespaceValue, podLabel, podValue),
+		).
 		WithPorts(ports...)
+}
+
+func crossNamespacePodPeer(nsLabel, nsValue, podLabel, podValue string) *npac.NetworkPolicyPeerApplyConfiguration {
+	return npac.NetworkPolicyPeer().
+		WithNamespaceSelector(metaac.LabelSelector().
+			WithMatchLabels(map[string]string{
+				nsLabel: nsValue,
+			})).
+		WithPodSelector(metaac.LabelSelector().
+			WithMatchLabels(map[string]string{
+				podLabel: podValue,
+			}))
 }
 
 func buildIngressControllerRules(ports []*npac.NetworkPolicyPortApplyConfiguration) []*npac.NetworkPolicyIngressRuleApplyConfiguration {
