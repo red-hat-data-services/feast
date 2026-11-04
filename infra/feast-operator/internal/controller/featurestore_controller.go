@@ -123,6 +123,13 @@ type FeatureStoreReconciler struct {
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=monitoring.coreos.com,resources=servicemonitors,verbs=get;list;watch;create;patch;delete
 // +kubebuilder:rbac:groups=mlflow.opendatahub.io,resources=mlflows,verbs=get;list;watch
+// Install-type detection uses odh-platform-utilities DetectPlatform so the
+// dashboard NetworkPolicy allows only that install's dashboard pods.
+// Absent CRDs are treated as "not this install", not as a reconcile error.
+// +kubebuilder:rbac:groups=operators.coreos.com,resources=catalogsources,verbs=get
+// +kubebuilder:rbac:groups=operators.coreos.com,resources=operatorconditions,verbs=list
+// +kubebuilder:rbac:groups=olm.operatorframework.io,resources=clustercatalogs,verbs=get
+// +kubebuilder:rbac:groups=olm.operatorframework.io,resources=clusterextensions,verbs=list
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.

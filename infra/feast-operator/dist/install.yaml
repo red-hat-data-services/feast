@@ -24376,6 +24376,14 @@ rules:
   - update
   - watch
 - apiGroups:
+  - config.openshift.io
+  resources:
+  - apiservers
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - dataregistry.opendatahub.io
   resources:
   - connections
@@ -24462,6 +24470,30 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - olm.operatorframework.io
+  resources:
+  - clustercatalogs
+  verbs:
+  - get
+- apiGroups:
+  - olm.operatorframework.io
+  resources:
+  - clusterextensions
+  verbs:
+  - list
+- apiGroups:
+  - operators.coreos.com
+  resources:
+  - catalogsources
+  verbs:
+  - get
+- apiGroups:
+  - operators.coreos.com
+  resources:
+  - operatorconditions
+  verbs:
+  - list
 - apiGroups:
   - policy
   resources:

@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"os"
 
 	feastdevv1 "github.com/feast-dev/feast/infra/feast-operator/api/v1"
 	"github.com/feast-dev/feast/infra/feast-operator/internal/controller/handler"
@@ -26,11 +27,14 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	npac "k8s.io/client-go/applyconfigurations/networking/v1"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 func newTestFeatureStore(name, namespace string) *feastdevv1.FeatureStore {
@@ -87,6 +91,41 @@ func setupFeastServices(ctx context.Context, featureStore *feastdevv1.FeatureSto
 	return feast
 }
 
+func expectDashboardPodLabels(ports []*npac.NetworkPolicyPortApplyConfiguration, podLabels []string) {
+	rules := buildDashboardIngressRules(ports)
+	Expect(rules).To(HaveLen(len(podLabels)))
+	for i, podLabel := range podLabels {
+		Expect(rules[i].From).To(HaveLen(2))
+		Expect(rules[i].From[0].NamespaceSelector.MatchLabels).To(HaveKeyWithValue(
+			dashboardNamespaceLabel, dashboardNamespaceValue,
+		))
+		Expect(rules[i].From[1].NamespaceSelector.MatchLabels).To(HaveKeyWithValue(
+			customAppNamespaceLabel, customAppNamespaceValue,
+		))
+		for _, peer := range rules[i].From {
+			Expect(peer.PodSelector.MatchLabels).To(HaveKeyWithValue(podLabel, "true"))
+		}
+		Expect(rules[i].Ports).To(HaveLen(len(ports)))
+		Expect(rules[i].Ports[0].Port.IntVal).To(Equal(ports[0].Port.IntVal))
+	}
+}
+
+func withPlatformTypeEnv(value string) {
+	original, existed := os.LookupEnv(platformTypeEnv)
+	if value == "" {
+		Expect(os.Unsetenv(platformTypeEnv)).To(Succeed())
+	} else {
+		Expect(os.Setenv(platformTypeEnv, value)).To(Succeed())
+	}
+	DeferCleanup(func() {
+		if existed {
+			Expect(os.Setenv(platformTypeEnv, original)).To(Succeed())
+		} else {
+			Expect(os.Unsetenv(platformTypeEnv)).To(Succeed())
+		}
+	})
+}
+
 func getNetworkPolicy(ctx context.Context, name, namespace string) *networkingv1.NetworkPolicy {
 	np := &networkingv1.NetworkPolicy{}
 	err := k8sClient.Get(ctx, types.NamespacedName{Name: name, Namespace: namespace}, np)
@@ -111,6 +150,7 @@ var _ = Describe("NetworkPolicy", func() {
 	})
 
 	AfterEach(func() {
+		resetInstallPlatformForTest()
 		Expect(feast.deleteAllNetworkPolicies()).To(Succeed())
 		Expect(k8sClient.Delete(ctx, featureStore)).To(Succeed())
 	})
@@ -194,19 +234,81 @@ var _ = Describe("NetworkPolicy", func() {
 		})
 	})
 
+	Describe("install platform detection", func() {
+		It("should select the RHOAI dashboard when rhods-operator is installed", func() {
+			withPlatformTypeEnv("")
+			condition := &unstructured.Unstructured{Object: map[string]any{
+				"apiVersion": "operators.coreos.com/v2",
+				"kind":       "OperatorCondition",
+				"metadata": map[string]any{
+					"name": "rhods-operator.3.6.0",
+				},
+			}}
+			SetInstallPlatformReader(fake.NewClientBuilder().WithScheme(runtime.NewScheme()).WithObjects(condition).Build())
+
+			feast.ensureInstallPlatform()
+
+			Expect(currentInstallPlatform()).To(Equal(installPlatformRHOAI))
+			expectDashboardPodLabels(feast.collectDashboardPorts(), []string{dashboardPodLabelRHOAI})
+		})
+
+		It("should select ODH dashboards when no RHOAI operator is present", func() {
+			withPlatformTypeEnv("")
+			SetInstallPlatformReader(fake.NewClientBuilder().WithScheme(runtime.NewScheme()).Build())
+
+			feast.ensureInstallPlatform()
+
+			Expect(currentInstallPlatform()).To(Equal(installPlatformODH))
+			expectDashboardPodLabels(feast.collectDashboardPorts(), []string{dashboardPodLabelLegacy, dashboardPodLabelODH})
+		})
+
+		It("should honor an explicit ODH_PLATFORM_TYPE", func() {
+			withPlatformTypeEnv("ManagedRHOAI")
+			SetInstallPlatformReader(fake.NewClientBuilder().WithScheme(runtime.NewScheme()).Build())
+
+			feast.ensureInstallPlatform()
+
+			Expect(currentInstallPlatform()).To(Equal(installPlatformRHOAI))
+		})
+	})
+
 	Describe("buildDashboardIngressRules", func() {
-		It("should create a rule with namespace+pod selectors for Dashboard", func() {
-			ports := feast.collectDashboardPorts()
-			rules := buildDashboardIngressRules(ports)
-			Expect(rules).To(HaveLen(2))
-			for i, podLabel := range []string{dashboardPodLabel, dashboardPodLabelCurrent} {
-				Expect(rules[i].From).To(HaveLen(1))
-				peer := rules[i].From[0]
-				Expect(peer.NamespaceSelector.MatchLabels).To(HaveKeyWithValue(
-					dashboardNamespaceLabel, dashboardNamespaceValue,
+		It("should allow only the RHOAI dashboard on a RHOAI install", func() {
+			setInstallPlatformForTest(installPlatformRHOAI)
+			expectDashboardPodLabels(feast.collectDashboardPorts(), []string{dashboardPodLabelRHOAI})
+		})
+
+		It("should allow legacy and current ODH dashboards on an ODH install", func() {
+			setInstallPlatformForTest(installPlatformODH)
+			expectDashboardPodLabels(feast.collectDashboardPorts(), []string{dashboardPodLabelLegacy, dashboardPodLabelODH})
+		})
+
+		It("should allow every dashboard label when the install type is unknown", func() {
+			expectDashboardPodLabels(feast.collectDashboardPorts(), []string{
+				dashboardPodLabelLegacy, dashboardPodLabelODH, dashboardPodLabelRHOAI,
+			})
+		})
+	})
+
+	Describe("buildDataRegistryUIIngressRules", func() {
+		It("should allow the Data Registry UI from the applications namespace", func() {
+			ports := []*npac.NetworkPolicyPortApplyConfiguration{npPort(DataRegistryProxyPort)}
+			rules := buildDataRegistryUIIngressRules(ports)
+			Expect(rules).To(HaveLen(1))
+			Expect(rules[0].From).To(HaveLen(2))
+			Expect(rules[0].From[0].NamespaceSelector.MatchLabels).To(HaveKeyWithValue(
+				dashboardNamespaceLabel, dashboardNamespaceValue,
+			))
+			Expect(rules[0].From[1].NamespaceSelector.MatchLabels).To(HaveKeyWithValue(
+				customAppNamespaceLabel, customAppNamespaceValue,
+			))
+			for _, peer := range rules[0].From {
+				Expect(peer.PodSelector.MatchLabels).To(HaveKeyWithValue(
+					dataRegistryUIPodLabel, dataRegistryUIPodValue,
 				))
-				Expect(peer.PodSelector.MatchLabels).To(HaveKeyWithValue(podLabel, "true"))
 			}
+			Expect(rules[0].Ports).To(HaveLen(1))
+			Expect(rules[0].Ports[0].Port.IntVal).To(Equal(DataRegistryProxyPort))
 		})
 	})
 
@@ -295,10 +397,21 @@ var _ = Describe("NetworkPolicy", func() {
 
 			dashNP := getNetworkPolicy(ctx, GetFeastName(featureStore)+npSuffixDashboard, featureStore.Namespace)
 			Expect(dashNP).NotTo(BeNil())
-			Expect(dashNP.Spec.Ingress).To(HaveLen(2))
-			Expect(dashNP.Spec.Ingress[0].From[0].NamespaceSelector.MatchLabels).To(HaveKeyWithValue(
-				dashboardNamespaceLabel, dashboardNamespaceValue,
-			))
+			// Install type is unknown in this test, so every dashboard peer is kept.
+			Expect(dashNP.Spec.Ingress).To(HaveLen(3))
+			expectedDashLabels := []string{dashboardPodLabelLegacy, dashboardPodLabelODH, dashboardPodLabelRHOAI}
+			for i, podLabel := range expectedDashLabels {
+				Expect(dashNP.Spec.Ingress[i].From).To(HaveLen(2))
+				Expect(dashNP.Spec.Ingress[i].From[0].NamespaceSelector.MatchLabels).To(HaveKeyWithValue(
+					dashboardNamespaceLabel, dashboardNamespaceValue,
+				))
+				Expect(dashNP.Spec.Ingress[i].From[1].NamespaceSelector.MatchLabels).To(HaveKeyWithValue(
+					customAppNamespaceLabel, customAppNamespaceValue,
+				))
+				for _, peer := range dashNP.Spec.Ingress[i].From {
+					Expect(peer.PodSelector.MatchLabels).To(HaveKeyWithValue(podLabel, "true"))
+				}
+			}
 
 			workbenchNP := getNetworkPolicy(ctx, GetFeastName(featureStore)+npSuffixWorkbench, featureStore.Namespace)
 			Expect(workbenchNP).NotTo(BeNil())
@@ -410,6 +523,25 @@ var _ = Describe("NetworkPolicy", func() {
 			Expect(*sameNsNP.OwnerReferences[0].Controller).To(BeTrue())
 		})
 
+		It("should replace ODH and RHOAI peers with the RHOAI dashboard peer", func() {
+			Expect(feast.reconcileNetworkPolicies()).To(Succeed())
+			dashNP := getNetworkPolicy(ctx, GetFeastName(featureStore)+npSuffixDashboard, featureStore.Namespace)
+			Expect(dashNP).NotTo(BeNil())
+			Expect(dashNP.Spec.Ingress).To(HaveLen(3))
+
+			setInstallPlatformForTest(installPlatformRHOAI)
+			Expect(feast.reconcileNetworkPolicies()).To(Succeed())
+
+			dashNP = getNetworkPolicy(ctx, GetFeastName(featureStore)+npSuffixDashboard, featureStore.Namespace)
+			Expect(dashNP.Spec.Ingress).To(HaveLen(1))
+			Expect(dashNP.Spec.Ingress[0].From).To(HaveLen(2))
+			for _, peer := range dashNP.Spec.Ingress[0].From {
+				Expect(peer.PodSelector.MatchLabels).To(HaveKeyWithValue(dashboardPodLabelRHOAI, "true"))
+				Expect(peer.PodSelector.MatchLabels).NotTo(HaveKey(dashboardPodLabelODH))
+				Expect(peer.PodSelector.MatchLabels).NotTo(HaveKey(dashboardPodLabelLegacy))
+			}
+		})
+
 		It("should remove dashboard policy when REST API is disabled", func() {
 			Expect(feast.reconcileNetworkPolicies()).To(Succeed())
 			dashNP := getNetworkPolicy(ctx, GetFeastName(featureStore)+npSuffixDashboard, featureStore.Namespace)
@@ -492,6 +624,28 @@ var _ = Describe("NetworkPolicy", func() {
 			Expect(egressNP).NotTo(BeNil())
 			dataRegNP := getNetworkPolicy(ctx, GetFeastName(featureStore)+npSuffixDataReg, featureStore.Namespace)
 			Expect(dataRegNP).NotTo(BeNil())
+			Expect(dataRegNP.Spec.PodSelector.MatchLabels).To(HaveKeyWithValue(
+				NameLabelKey, featureStore.Name,
+			))
+			Expect(dataRegNP.Spec.PodSelector.MatchLabels).To(HaveKeyWithValue(
+				ServiceTypeLabelKey, string(DataRegistryFeastType),
+			))
+			Expect(dataRegNP.Spec.Ingress).To(HaveLen(1))
+			Expect(dataRegNP.Spec.Ingress[0].Ports).To(HaveLen(1))
+			Expect(dataRegNP.Spec.Ingress[0].Ports[0].Port.IntVal).To(Equal(DataRegistryProxyPort))
+			Expect(dataRegNP.Spec.Ingress[0].From).To(HaveLen(2))
+			Expect(dataRegNP.Spec.Ingress[0].From[0].PodSelector.MatchLabels).To(HaveKeyWithValue(
+				dataRegistryUIPodLabel, dataRegistryUIPodValue,
+			))
+			Expect(dataRegNP.Spec.Ingress[0].From[0].NamespaceSelector.MatchLabels).To(HaveKeyWithValue(
+				dashboardNamespaceLabel, dashboardNamespaceValue,
+			))
+			Expect(dataRegNP.Spec.Ingress[0].From[1].PodSelector.MatchLabels).To(HaveKeyWithValue(
+				dataRegistryUIPodLabel, dataRegistryUIPodValue,
+			))
+			Expect(dataRegNP.Spec.Ingress[0].From[1].NamespaceSelector.MatchLabels).To(HaveKeyWithValue(
+				customAppNamespaceLabel, customAppNamespaceValue,
+			))
 		})
 
 		It("should clean up standard-mode-only policies", func() {
