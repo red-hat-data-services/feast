@@ -226,6 +226,8 @@ func main() {
 	}
 
 	services.SetIsOpenShift(mgr.GetConfig())
+	// Uncached reader: DetectPlatform lists OLM objects this manager does not watch.
+	services.SetInstallPlatformReader(mgr.GetAPIReader())
 
 	var fsMetrics *feastmetrics.FeatureStoreMetrics
 	if featureStoreMetrics {
