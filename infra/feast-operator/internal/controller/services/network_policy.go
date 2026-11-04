@@ -54,8 +54,10 @@ const (
 	dashboardNamespaceValue = "true"
 	customAppNamespaceLabel = "opendatahub.io/application-namespace"
 	customAppNamespaceValue = "true"
-	// Older ODH releases labeled the dashboard with the component name
-	// "dashboard". Current manifests use a platform-specific label.
+	// Dashboard pod labels are install-specific. Older ODH releases used
+	// the component name "dashboard". Current ODH uses odh-dashboard.
+	// RHOAI uses rhods-dashboard. Only the labels for the detected
+	// install are written into the NetworkPolicy.
 	dashboardPodLabelLegacy = "app.opendatahub.io/dashboard"
 	dashboardPodLabelODH    = "app.opendatahub.io/odh-dashboard"
 	dashboardPodLabelRHOAI  = "app.opendatahub.io/rhods-dashboard"
@@ -105,8 +107,11 @@ func (feast *FeastServices) reconcileNetworkPolicies() error {
 	}
 
 	// Dashboard cross-namespace → Registry REST.
+	// Peers follow the detected install: RHOAI allows rhods-dashboard,
+	// ODH allows the legacy and current ODH dashboard labels.
 	dashPorts := feast.collectDashboardPorts()
 	if len(dashPorts) > 0 {
+		feast.ensureInstallPlatform()
 		if err := feast.applyNetworkPolicy(
 			GetFeastName(cr)+npSuffixDashboard,
 			selectorLabels,
@@ -434,8 +439,19 @@ func buildSameNamespaceIngressRules(ports []*npac.NetworkPolicyPortApplyConfigur
 	}
 }
 
+func dashboardPodLabels() []string {
+	switch currentInstallPlatform() {
+	case installPlatformRHOAI:
+		return []string{dashboardPodLabelRHOAI}
+	case installPlatformODH:
+		return []string{dashboardPodLabelLegacy, dashboardPodLabelODH}
+	default:
+		return []string{dashboardPodLabelLegacy, dashboardPodLabelODH, dashboardPodLabelRHOAI}
+	}
+}
+
 func buildDashboardIngressRules(ports []*npac.NetworkPolicyPortApplyConfiguration) []*npac.NetworkPolicyIngressRuleApplyConfiguration {
-	podLabels := []string{dashboardPodLabelLegacy, dashboardPodLabelODH, dashboardPodLabelRHOAI}
+	podLabels := dashboardPodLabels()
 	rules := make([]*npac.NetworkPolicyIngressRuleApplyConfiguration, 0, len(podLabels))
 	for _, podLabel := range podLabels {
 		rules = append(rules, applicationsNamespaceIngressRule(podLabel, "true", ports))
