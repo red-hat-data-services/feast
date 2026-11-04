@@ -1,5 +1,5 @@
 # Stage 1: Build with full Python 312 image (includes compilers and dev tools)
-FROM registry.access.redhat.com/ubi9/python-312:1@sha256:3e2ea88a82a27597b8c016db76da9b175f1693df49dc16812f7734a66d7869b9 AS builder
+FROM registry.access.redhat.com/ubi9/python-312:1@sha256:19e1e927138b40454858f297884c2c4e2f13f5ba95b3f55faea174d3cbb57067 AS builder
 
 USER 0
 
