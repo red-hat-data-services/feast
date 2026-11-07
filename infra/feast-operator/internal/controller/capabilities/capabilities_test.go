@@ -157,6 +157,48 @@ func TestStrictModeBlocksWhenConfigMapMissing(t *testing.T) {
 	}
 }
 
+func TestLoadMarksTerminatingConfigMap(t *testing.T) {
+	t.Setenv(podNamespaceEnvVar, "redhat-ods-applications")
+
+	scheme := runtime.NewScheme()
+	_ = corev1.AddToScheme(scheme)
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      ConfigMapName,
+			Namespace: "redhat-ods-applications",
+			Finalizers: []string{
+				"components.platform.opendatahub.io/feast-capabilities",
+				CapabilitiesConfigFinalizer,
+			},
+		},
+		Data: map[string]string{
+			KeyFeatureStoreEnabled: "false",
+			KeyDataRegistryEnabled: "false",
+		},
+	}
+	cl := fake.NewClientBuilder().WithScheme(scheme).WithObjects(cm).Build()
+
+	// Deleting an object that carries finalizers only sets its
+	// deletionTimestamp; the object and its data stay readable.
+	if err := cl.Delete(context.Background(), cm); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+
+	cfg, err := Load(context.Background(), cl)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !cfg.PlatformConfigPresent {
+		t.Fatal("expected PlatformConfigPresent=true for Terminating ConfigMap")
+	}
+	if !cfg.PlatformConfigTerminating {
+		t.Fatal("expected PlatformConfigTerminating=true for Terminating ConfigMap")
+	}
+	if cfg.DataRegistryEnabled {
+		t.Fatal("expected data registry disabled; Terminating ConfigMap data must stay readable")
+	}
+}
+
 func TestStrictModeSucceedsWithValidConfigMap(t *testing.T) {
 	t.Setenv(podNamespaceEnvVar, "redhat-ods-applications")
 	t.Setenv(platformCapabilitiesRequiredEnvVar, "true")

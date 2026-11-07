@@ -35,6 +35,7 @@ import (
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	policyv1 "k8s.io/api/policy/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -100,6 +101,7 @@ func newCacheOptions() cache.Options {
 			&batchv1.CronJob{}:                       managedByFilter,
 			&autoscalingv2.HorizontalPodAutoscaler{}: managedByFilter,
 			&policyv1.PodDisruptionBudget{}:          managedByFilter,
+			&networkingv1.NetworkPolicy{}:            managedByFilter,
 		},
 	}
 }
@@ -138,7 +140,11 @@ func main() {
 
 	// Fetch cluster TLS profile from apiservers.config.openshift.io/cluster
 	cfg := ctrl.GetConfigOrDie()
-	bootstrapClient, err := client.New(cfg, client.Options{Scheme: scheme})
+	// Bound the bootstrap client's requests, including REST mapper discovery,
+	// which the bootstrap context does not cover.
+	bootstrapCfg := rest.CopyConfig(cfg)
+	bootstrapCfg.Timeout = 10 * time.Second
+	bootstrapClient, err := client.New(bootstrapCfg, client.Options{Scheme: scheme})
 	if err != nil {
 		setupLog.Error(err, "unable to create bootstrap client for TLS profile fetch")
 		os.Exit(1)
@@ -213,6 +219,7 @@ func main() {
 					&batchv1.CronJob{},
 					&autoscalingv2.HorizontalPodAutoscaler{},
 					&policyv1.PodDisruptionBudget{},
+					&networkingv1.NetworkPolicy{},
 				},
 			},
 		},
@@ -223,6 +230,8 @@ func main() {
 	}
 
 	services.SetIsOpenShift(mgr.GetConfig())
+	// Uncached reader: DetectPlatform lists OLM objects this manager does not watch.
+	services.SetInstallPlatformReader(mgr.GetAPIReader())
 
 	var fsMetrics *feastmetrics.FeatureStoreMetrics
 	if featureStoreMetrics {

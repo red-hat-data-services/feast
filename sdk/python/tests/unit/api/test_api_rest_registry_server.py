@@ -194,6 +194,26 @@ def test_start_server_non_dual_stack_host_uses_uvicorn_run(
         assert "in non-TLS(SSL) mode" in caplog.text
 
 
+def test_start_server_data_registry_mode_tags_catalog_project_only(
+    mock_store_and_registry, mocker, monkeypatch
+):
+    mocks = _patch_start_server_collaborators(mocker)
+    mock_sync = mocker.patch("feast.registry_server._sync_protected_project_tag")
+    mock_ensure = mocker.patch(
+        "feast.api.data_catalog.catalog_utils.ensure_catalog_project"
+    )
+
+    store, registry = mock_store_and_registry
+    server = RestRegistryServer(store)
+    monkeypatch.setenv("DATA_REGISTRY_ENABLED", "true")
+    monkeypatch.setenv("FEAST_PROTECTED_PROJECT", "true")
+    server.start_server(port=6572)
+
+    mock_ensure.assert_called_once_with(registry)
+    mock_sync.assert_not_called()
+    mocks["server_instance"].run.assert_called_once()
+
+
 def test_start_server_non_wildcard_host_uses_uvicorn_run(
     mock_store_and_registry, mocker
 ):

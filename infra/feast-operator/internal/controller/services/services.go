@@ -45,6 +45,12 @@ import (
 // Apply defaults and set service hostnames in FeatureStore status
 func (feast *FeastServices) ApplyDefaults() error {
 	ApplyDefaultsToStatus(feast.Handler.FeatureStore)
+	// Data-registry mode has a single storage project. spec.feastProject is
+	// left unchanged so the user can see what they wrote; status and the
+	// generated feature_store.yaml use DataRegistryProject.
+	if feast.isDataRegistryEnabled() {
+		feast.Handler.FeatureStore.Status.Applied.FeastProject = DataRegistryProject
+	}
 	feast.applyMlflowDefaults()
 	if err := feast.setTlsDefaults(); err != nil {
 		return err
@@ -178,6 +184,9 @@ func (feast *FeastServices) Deploy() error {
 	if err := feast.createOrDeleteServiceMonitor(); err != nil {
 		return err
 	}
+	if err := feast.reconcileNetworkPolicies(); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -222,6 +231,12 @@ func (feast *FeastServices) deployDataRegistryMode() error {
 		}
 	}
 
+	// Drop this CR from feature-store discovery before standard resources are
+	// removed. A later deploy error must not leave a torn-down store listed.
+	if err := feast.RemoveFromNamespaceRegistry(); err != nil {
+		return feast.setFeastServiceCondition(err, DataRegistryFeastType)
+	}
+
 	// Clean up standard-mode resources that are not needed in data-registry mode
 	// to avoid orphaned Deployments, Services, PVCs, HPAs, etc.
 	if err := feast.Handler.DeleteOwnedFeastObj(feast.initFeastDeploy()); err != nil {
@@ -242,7 +257,7 @@ func (feast *FeastServices) deployDataRegistryMode() error {
 	if err := feast.deployClient(); err != nil {
 		return feast.setFeastServiceCondition(err, DataRegistryFeastType)
 	}
-	if err := feast.deployNamespaceRegistry(); err != nil {
+	if err := feast.reconcileDataRegistryNetworkPolicies(); err != nil {
 		return feast.setFeastServiceCondition(err, DataRegistryFeastType)
 	}
 	return feast.setFeastServiceCondition(nil, DataRegistryFeastType)
@@ -487,6 +502,9 @@ func (feast *FeastServices) CleanupStandardResources() error {
 		if err := feast.removeRoute(feastType); err != nil {
 			return err
 		}
+	}
+	if err := feast.deleteAllNetworkPolicies(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -1658,7 +1676,11 @@ func (feast *FeastServices) setFeastServiceCondition(err error, feastType FeastS
 		logger.Error(err, "Error deploying the FeatureStore "+string(ClientFeastType)+" service")
 		return err
 	}
-	apimeta.SetStatusCondition(&feast.Handler.FeatureStore.Status.Conditions, conditionMap[metav1.ConditionTrue])
+	cond := conditionMap[metav1.ConditionTrue]
+	if feastType == DataRegistryFeastType {
+		cond.Message = feastdevv1.DataRegistryReadyStatusMessage
+	}
+	apimeta.SetStatusCondition(&feast.Handler.FeatureStore.Status.Conditions, cond)
 	return nil
 }
 

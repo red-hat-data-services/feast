@@ -803,7 +803,7 @@ func getClientRepoConfig(
 
 func getRepoConfig(featureStore *feastdevv1.FeatureStore) RepoConfig {
 	status := featureStore.Status
-	repoConfig := initRepoConfig(status.Applied.FeastProject)
+	repoConfig := initRepoConfig(effectiveFeastProject(featureStore))
 	if status.Applied.AuthzConfig != nil {
 		if status.Applied.AuthzConfig.NoAuth != nil && *status.Applied.AuthzConfig.NoAuth {
 			repoConfig.AuthzConfig = AuthzConfig{
@@ -917,14 +917,26 @@ func (feast *FeastServices) GetDefaultRepoConfig() RepoConfig {
 }
 
 func defaultRepoConfig(featureStore *feastdevv1.FeatureStore) RepoConfig {
-	repoConfig := initRepoConfig(featureStore.Status.Applied.FeastProject)
+	repoConfig := initRepoConfig(effectiveFeastProject(featureStore))
 	repoConfig.OnlineStore = defaultOnlineStoreConfig(featureStore)
 	repoConfig.Registry = defaultRegistryConfig(featureStore)
 	return repoConfig
 }
 
 func (feast *FeastServices) GetInitRepoConfig() RepoConfig {
-	return initRepoConfig(feast.Handler.FeatureStore.Status.Applied.FeastProject)
+	return initRepoConfig(effectiveFeastProject(feast.Handler.FeatureStore))
+}
+
+// effectiveFeastProject is the project written into feature_store.yaml.
+// Data-registry mode ignores spec.feastProject and always uses DataRegistryProject.
+func effectiveFeastProject(featureStore *feastdevv1.FeatureStore) string {
+	if IsDataRegistryCREnabled(featureStore) {
+		return DataRegistryProject
+	}
+	if featureStore == nil {
+		return ""
+	}
+	return featureStore.Status.Applied.FeastProject
 }
 
 func initRepoConfig(feastProject string) RepoConfig {

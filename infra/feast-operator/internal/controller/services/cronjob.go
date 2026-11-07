@@ -69,8 +69,10 @@ func (feast *FeastServices) setCronJob(cronJob *batchv1.CronJob) error {
 		JobTemplate: batchv1.JobTemplateSpec{
 			Spec: batchv1.JobSpec{
 				Template: corev1.PodTemplateSpec{
-					ObjectMeta: metav1.ObjectMeta{},
-					Spec:       feast.getCronJobPodSpec(),
+					ObjectMeta: metav1.ObjectMeta{
+						Labels: feast.getCronJobPodLabels(),
+					},
+					Spec: feast.getCronJobPodSpec(),
 				},
 			},
 		},
@@ -145,6 +147,16 @@ func (feast *FeastServices) setCronJob(cronJob *batchv1.CronJob) error {
 
 	feast.Handler.FeatureStore.Status.CronJob = cronJob.Name
 	return controllerutil.SetControllerReference(feast.Handler.FeatureStore, cronJob, feast.Handler.Scheme)
+}
+
+// getCronJobPodLabels returns labels for CronJob pod templates, enabling
+// NetworkPolicy targeting. Uses the CronJob service name as the NameLabelKey
+// value to distinguish CronJob pods from the main Feast deployment pods.
+func (feast *FeastServices) getCronJobPodLabels() map[string]string {
+	return map[string]string{
+		NameLabelKey:      feast.GetFeastServiceName(CronJobFeastType),
+		ManagedByLabelKey: ManagedByLabelValue,
+	}
 }
 
 func (feast *FeastServices) getCronJobPodSpec() corev1.PodSpec {

@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -63,12 +64,31 @@ func Bootstrap(ctx context.Context, k8sClient client.Client) (*BootstrapResult, 
 	result.ProfileFetched = profileFetched
 	result.ProfileSpec = profile
 
+	// Validate before the shared helper's TLSVersionOrDie can panic on it.
+	minVersion, err := minTLSVersion(profile.MinTLSVersion)
+	if err != nil {
+		return nil, err
+	}
+
 	tlsConfigFn, unsupported := tlspkg.NewTLSConfigFromProfile(profile)
 	result.UnsupportedCiphers = unsupported
 	if len(unsupported) > 0 {
 		logger.Info("TLS profile contains ciphers unsupported by Go", "unsupported", unsupported)
 	}
-	result.TLSOpts = append(result.TLSOpts, tlsConfigFn)
+
+	cipherSuites, err := runtimeUsableCipherSuites(logger, tlsConfigFn, minVersion, profile)
+	if err != nil {
+		return nil, err
+	}
+
+	result.TLSOpts = append(result.TLSOpts, func(c *tls.Config) {
+		tlsConfigFn(c)
+		// nil means no override: TLS 1.3 (helper leaves CipherSuites unset) or
+		// an empty requested list (Go defaults, matching the shared helper).
+		if cipherSuites != nil {
+			c.CipherSuites = cipherSuites
+		}
+	})
 
 	adherence, adherenceFetched, err := fetchTLSAdherencePolicy(ctx, k8sClient, profileFetched)
 	if err != nil {
@@ -84,27 +104,33 @@ func Bootstrap(ctx context.Context, k8sClient client.Client) (*BootstrapResult, 
 	return result, nil
 }
 
+// +kubebuilder:rbac:groups=config.openshift.io,resources=apiservers,verbs=get;list;watch
+
 func fetchTLSProfile(ctx context.Context, k8sClient client.Client) (configv1.TLSProfileSpec, bool, error) {
 	fetchCtx, cancel := context.WithTimeout(ctx, FetchTimeout)
 	defer cancel()
 
 	profile, err := tlspkg.FetchAPIServerTLSProfile(fetchCtx, k8sClient)
 	if err != nil {
-		return classifyTLSProfileError(err)
+		return classifyTLSProfileError(log.FromContext(ctx), err)
 	}
 	return profile, true, nil
 }
 
-func classifyTLSProfileError(err error) (configv1.TLSProfileSpec, bool, error) {
+func classifyTLSProfileError(logger logr.Logger, err error) (configv1.TLSProfileSpec, bool, error) {
 	intermediate := *configv1.TLSProfiles[configv1.TLSProfileIntermediateType]
 
 	switch {
-	case apimeta.IsNoMatchError(err),
-		isAPIError(err, apierrors.IsNotFound),
-		isAPIError(err, apierrors.IsForbidden):
-		// API not present or no RBAC — not an OpenShift cluster, fall back to Intermediate.
+	case apimeta.IsNoMatchError(err), isAPIError(err, apierrors.IsNotFound):
+		// API not present — not an OpenShift cluster, fall back to Intermediate.
+		logger.Info("TLS profile API not available, using Intermediate defaults", "error", err)
 		return intermediate, false, nil
+	case isAPIError(err, apierrors.IsForbidden), isAPIError(err, apierrors.IsUnauthorized):
+		// The API exists but the operator may not read it; fail startup instead
+		// of silently degrading the TLS profile.
+		return configv1.TLSProfileSpec{}, false, fmt.Errorf("not authorized to read APIServer TLS profile: %w", err)
 	case isTransientError(err):
+		logger.Info("Transient API error reading TLS profile, using Intermediate defaults", "error", err)
 		return intermediate, true, nil
 	default:
 		return configv1.TLSProfileSpec{}, false, fmt.Errorf("unable to read APIServer TLS profile: %w", err)
@@ -160,4 +186,85 @@ func isAPIError(err error, check func(error) bool) bool {
 		return check(statusErr)
 	}
 	return check(err)
+}
+
+// minTLSVersion validates the profile's minimum TLS version before the shared
+// helper's TLSVersionOrDie can panic on it. The configured minimum is honored
+// exactly, never floored or raised.
+func minTLSVersion(version configv1.TLSProtocolVersion) (uint16, error) {
+	switch version {
+	case "":
+		return tls.VersionTLS12, nil // same default the shared helper applies
+	case configv1.VersionTLS10:
+		// Go 1.22+ defaults the server minimum to TLS 1.2 only when tls.Config.MinVersion
+		// is unset; the explicit minimum set here needs no GODEBUG.
+		return tls.VersionTLS10, nil
+	case configv1.VersionTLS11:
+		return tls.VersionTLS11, nil
+	case configv1.VersionTLS12:
+		return tls.VersionTLS12, nil
+	case configv1.VersionTLS13:
+		return tls.VersionTLS13, nil
+	default:
+		return 0, fmt.Errorf("unsupported minimum TLS version %q", version)
+	}
+}
+
+// runtimeUsableCipherSuites resolves the profile's cipher names through the
+// shared helper and keeps only suites this Go runtime actually negotiates for
+// TLS 1.2-and-below handshakes. A non-empty requested list with no usable
+// suite is an error: installing nil/empty CipherSuites would silently enable
+// Go's default suites.
+func runtimeUsableCipherSuites(
+	logger logr.Logger, tlsConfigFn func(*tls.Config), minVersion uint16, profile configv1.TLSProfileSpec,
+) ([]uint16, error) {
+	if minVersion >= tls.VersionTLS13 || len(profile.Ciphers) == 0 {
+		return nil, nil
+	}
+
+	// Apply the helper's callback to a scratch config to resolve the requested
+	// names (IANA and OpenSSL) to cipher IDs.
+	scratch := &tls.Config{}
+	tlsConfigFn(scratch)
+
+	usable := usableCipherIDs(scratch.CipherSuites)
+	if len(usable) == 0 {
+		return nil, fmt.Errorf("TLS profile with minimum %s has no cipher suites usable by this Go runtime: %v",
+			profile.MinTLSVersion, profile.Ciphers)
+	}
+	if len(usable) < len(scratch.CipherSuites) {
+		var dropped []string
+		for _, id := range scratch.CipherSuites {
+			if !slices.Contains(usable, id) {
+				dropped = append(dropped, tls.CipherSuiteName(id))
+			}
+		}
+		logger.Info("Dropping TLS profile ciphers not usable by the Go runtime", "dropped", dropped)
+	}
+	return usable, nil
+}
+
+// usableCipherIDs filters ids down to suites this Go runtime can negotiate for
+// TLS 1.2-and-below handshakes: TLS 1.3-only cipher IDs (0x1300-0x13ff) never
+// apply there. Both tls.CipherSuites() and tls.InsecureCipherSuites() are
+// runtime-negotiable when explicitly listed (Old's 3DES and RSA-key-exchange
+// suites live in the insecure table), so only truly unknown IDs are dropped.
+func usableCipherIDs(ids []uint16) []uint16 {
+	supported := make(map[uint16]struct{}, 64)
+	for _, suite := range tls.CipherSuites() {
+		supported[suite.ID] = struct{}{}
+	}
+	for _, suite := range tls.InsecureCipherSuites() {
+		supported[suite.ID] = struct{}{}
+	}
+	var usable []uint16
+	for _, id := range ids {
+		if id >= 0x1300 && id <= 0x13ff {
+			continue
+		}
+		if _, ok := supported[id]; ok {
+			usable = append(usable, id)
+		}
+	}
+	return usable
 }

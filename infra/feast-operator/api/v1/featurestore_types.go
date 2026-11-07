@@ -50,6 +50,7 @@ const (
 	FeatureStoreDisabledReason           = "FeatureStoreDisabled"
 	DataRegistryDisabledReason           = "DataRegistryDisabled"
 	DataRegistryNamespaceRejectedReason  = "DataRegistryNamespaceRejected"
+	DataRegistryNameRejectedReason       = "DataRegistryNameRejected"
 	DataRegistryAnnotationRequiredReason = "DataRegistryAnnotationRequired"
 	PlatformConfigMissingReason          = "PlatformConfigMissing"
 	DeploymentNotAvailableReason         = "DeploymentNotAvailable"
@@ -70,6 +71,7 @@ const (
 	FeatureStoreDisabledMessage           = "Feature Store capability is disabled in the platform configuration (feast-capabilities-config featureStoreEnabled=false)"
 	DataRegistryDisabledMessage           = "Data Registry capability is disabled in the platform configuration (feast-capabilities-config dataRegistryEnabled=false)"
 	DataRegistryNamespaceRejectedMessage  = "Data Registry instances are only permitted in namespace '%s', but this FeatureStore is in namespace '%s'"
+	DataRegistryNameRejectedMessage       = "Data Registry mode requires FeatureStore name '%s', but this FeatureStore is named '%s'"
 	DataRegistryAnnotationRequiredMessage = "FeatureStore instances in the Data Registry namespace require annotation dataregistry.opendatahub.io/enabled=true"
 	PlatformConfigMissingMessage          = "feast-capabilities-config ConfigMap is required but not found in namespace %s. Waiting for the module operator to create it."
 	OfflineStoreReadyMessage              = "Offline Store installation complete"
@@ -81,9 +83,13 @@ const (
 	ClientReadyMessage                    = "Client installation complete"
 	CronJobReadyMessage                   = "CronJob installation complete"
 	DataRegistryReadyMessage              = "Data Registry installation complete"
-	KubernetesAuthzReadyMessage           = "Kubernetes authorization installation complete"
-	OidcAuthzReadyMessage                 = "OIDC authorization installation complete"
-	DeploymentNotAvailableMessage         = "Deployment is not available"
+	// DataRegistryFeastProjectIgnoredMessage is set on a ready data-registry
+	// FeatureStore. spec.feastProject is not applied; the catalog project is data_registry.
+	DataRegistryFeastProjectIgnoredMessage = "You are running in data registry mode, feastProject value will be ignored"
+	DataRegistryReadyStatusMessage         = DataRegistryReadyMessage + ". " + DataRegistryFeastProjectIgnoredMessage
+	KubernetesAuthzReadyMessage            = "Kubernetes authorization installation complete"
+	OidcAuthzReadyMessage                  = "OIDC authorization installation complete"
+	DeploymentNotAvailableMessage          = "Deployment is not available"
 
 	// entity_key_serialization_version
 	SerializationVersion = 3

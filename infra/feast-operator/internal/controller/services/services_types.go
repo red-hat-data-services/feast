@@ -103,8 +103,13 @@ const (
 	DataRegistryEditorClusterRoleName = "feast-data-registry-editor"
 	DataRegistryAdminClusterRoleName  = "feast-data-registry-admin"
 
+	// DataRegistryCRName is the only FeatureStore metadata.name allowed when
+	// data-registry mode is enabled. Any other name is rejected by the controller.
+	DataRegistryCRName = "data-registry"
+
 	// DataRegistryProject is the fixed Feast project name used in
 	// data-registry mode (Phase-1 single-project storage model).
+	// spec.feastProject is ignored while the annotation is enabled.
 	DataRegistryProject = "data_registry"
 
 	// DataRegistryNamespaceLabel is the label that must be present on a

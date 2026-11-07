@@ -129,16 +129,31 @@ def unscoped_name(scoped: str) -> str:
 
 
 def ensure_catalog_project(registry: BaseRegistry) -> Project:
-    """Get-or-create the single catalog Feast project. Idempotent."""
+    """Get-or-create the single catalog Feast project. Idempotent.
+
+    The protected-project tag is merged inside ``_mutate_catalog_project``.
+    A full ``apply_project`` of a previously read snapshot would replace
+    ``_ns_meta_*`` namespace tags written by a concurrent catalog request.
+    When the tag is already set, this does not write.
+    """
+    from feast.constants import PROTECTED_PROJECT_TAG
+
+    def mutator(project: Project, _conn: Any) -> None:
+        if project.tags.get(PROTECTED_PROJECT_TAG) == "true":
+            return
+        project.tags = {**project.tags, PROTECTED_PROJECT_TAG: "true"}
+
     try:
-        return registry.get_project(CATALOG_PROJECT, allow_cache=False)
+        project = registry.get_project(CATALOG_PROJECT, allow_cache=False)
     except ProjectObjectNotFoundException:
-        project = Project(
-            name=CATALOG_PROJECT,
-            description="RHOAI Data Registry",
-        )
-        registry.apply_project(project)
+        _mutate_catalog_project(registry, mutator)
+        return registry.get_project(CATALOG_PROJECT, allow_cache=False)
+
+    if project.tags.get(PROTECTED_PROJECT_TAG) == "true":
         return project
+
+    _mutate_catalog_project(registry, mutator)
+    return registry.get_project(CATALOG_PROJECT, allow_cache=False)
 
 
 def resolve_namespace(raw: str | list[str]) -> str:

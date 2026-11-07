@@ -30,12 +30,44 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 	featureRepoBasePath = filepath.Join(filename, "..", "..", "test")
+	fixtureRepoPath := filepath.Join(featureRepoBasePath, "feature_repo")
+	featureRepoBasePath, err := os.MkdirTemp("", "feast-go-featurestore-test-")
+	if err != nil {
+		log.Print("Could not create isolated test repo: ", err)
+		os.Exit(1)
+	}
+	if err := copyFeatureRepo(fixtureRepoPath, filepath.Join(featureRepoBasePath, "feature_repo")); err != nil {
+		log.Print("Could not copy test repo: ", err)
+		os.RemoveAll(featureRepoBasePath)
+		os.Exit(1)
+	}
 	featureRepoRegistryFile = filepath.Join(featureRepoBasePath, "feature_repo", "data", "registry.db")
 	if err := test.SetupInitializedRepo(featureRepoBasePath); err != nil {
 		log.Print("Could not initialize test repo: ", err)
+		os.RemoveAll(featureRepoBasePath)
 		os.Exit(1)
 	}
-	os.Exit(m.Run())
+	exitCode := m.Run()
+	if err := os.RemoveAll(featureRepoBasePath); err != nil {
+		log.Print("Could not remove isolated test repo: ", err)
+	}
+	os.Exit(exitCode)
+}
+
+func copyFeatureRepo(source, destination string) error {
+	if err := os.MkdirAll(destination, 0755); err != nil {
+		return err
+	}
+	for _, name := range []string{"__init__.py", "example.py", "feature_store.yaml", "driver_stats.parquet"} {
+		data, err := os.ReadFile(filepath.Join(source, name))
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.Join(destination, name), data, 0644); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func TestNewFeatureStore(t *testing.T) {
