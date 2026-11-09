@@ -9,7 +9,7 @@ POWER_REQUIREMENTS_FILE="/tmp/power-requirements.txt"
 # Packages that have pre-built ppc64le wheels on the IBM index.
 # duckdb (1.1.3) and pyarrow (17.0.0) are excluded — their pinned
 # versions are not on the IBM index and are built from source below.
-PACKAGES="grpcio|milvus-lite|pandas|numpy"
+PACKAGES="milvus-lite|pandas|numpy"
 
 echo "Finding required package versions from ${REQUIREMENTS_FILE}..."
 
@@ -79,7 +79,7 @@ cd ../../python
 BUILD_TYPE=release python3.12 setup.py build_ext --build-type=release --bundle-arrow-cpp bdist_wheel
 pip install dist/*.whl
 cd "$WORKDIR"
-
+GRPC_PYTHON_BUILD_SYSTEM_OPENSSL=1 python3.12 -m pip install --no-binary=:all: grpcio==1.62.3
 echo "Installed packages:"
 python3.12 -m pip list | grep -Ei \
     'duckdb|grpcio|pyarrow|milvus-lite|pandas|numpy'
