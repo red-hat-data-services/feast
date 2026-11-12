@@ -184,12 +184,12 @@ MCP_REQUIRED = ["fastapi_mcp"]
 
 RAG_REQUIRED = [
     "transformers>=4.36.0",
-    "datasets>=3.6.0",
+    "datasets>=5.2.0",
 ]
 
 IMAGE_REQUIRED = [
     "timm>=0.6.0",
-    "Pillow>=8.0.0",
+    "Pillow>=10.0.0",
     "scikit-learn>=1.0.0",
 ] + TORCH_REQUIRED
 
@@ -201,7 +201,7 @@ RAY_REQUIRED = [
 CI_REQUIRED = (
     [
         "build",
-        "virtualenv==21.14.5",
+        "virtualenv>=21.15.6",
         "jupyter-server>=2.21.0",
         "jupyterlab>=4.6.4",
         "tornado>=6.5.9",

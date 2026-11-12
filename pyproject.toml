@@ -101,7 +101,7 @@ k8s = ["kubernetes"]
 image = [
     "feast[pytorch]",
     "timm>=0.6.0",
-    "Pillow<12.0.0,>=10.0.0",
+    "Pillow>=10.0.0",
     "scikit-learn>=1.0.0",
 ]
 milvus = [
@@ -122,7 +122,7 @@ pytorch = ["torch>=2.7.0", "torchvision>=0.22.1"]
 qdrant = ["qdrant-client>=1.12.0"]
 rag = [
     "transformers>=4.36.0",
-    "datasets>=3.6.0",
+    "datasets>=5.2.0",
 ]
 ray = [
 'ray>=2.47.0; python_version == "3.10"',
@@ -141,7 +141,7 @@ mcp = ["fastapi_mcp"]
 
 ci = [
     "build",
-    "virtualenv==21.14.5",
+    "virtualenv>=21.15.6",
     "jupyter-server>=2.21.0",
     "jupyterlab>=4.6.4",
     "tornado>=6.5.9",
