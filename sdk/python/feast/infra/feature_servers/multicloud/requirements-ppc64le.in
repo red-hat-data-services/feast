@@ -22,7 +22,7 @@ node-semver==0.6.1
 patch-ng==1.17.4
 pluginbase==1.0.1
 Pygments==2.19.2
-PyJWT==2.10.1
+PyJWT==2.15.1
 python-dateutil==2.9.0.post0
 PyYAML==6.0.2
 requests==2.32.5
