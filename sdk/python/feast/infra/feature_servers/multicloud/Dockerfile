@@ -1,13 +1,23 @@
 FROM registry.access.redhat.com/ubi9/python-312-minimal:latest
 
 USER 0
-RUN microdnf install -y git gcc libpq-devel python3.12-devel && microdnf clean all
+RUN microdnf install -y git gcc gcc-c++ libpq-devel python3.12-devel tar dnf && microdnf clean all
+
 RUN microdnf install -y crypto-policies-scripts && \
     update-crypto-policies --set DEFAULT:PQ && \
     microdnf clean all
-USER 1001
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+ENV HOME=/root
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
+mv /root/.local/bin/uv /usr/local/bin/uv && \
+chmod +x /usr/local/bin/uv && \
+uv --version
+
+# Build context is the repository root so this checkout's Python can overlay
+# the PyPI feast[minimal] install. extras still come from requirements.txt.
+COPY sdk/python/feast/infra/feature_servers/multicloud/prebuild-power-base.sh /prebuild-power-base.sh
+RUN chmod +x /prebuild-power-base.sh
+
 ENV UV_CACHE_DIR=/tmp/uv-cache
 COPY sdk/python/feast/infra/feature_servers/multicloud/requirements.txt requirements.txt
 
@@ -48,3 +58,6 @@ print('overlaid feast package at', dst)"
 
 # modify permissions to support running with a random uid
 RUN chmod g+w $(python -c "import feast.ui as ui; print(ui.__path__)" | tr -d "[']")/build/projects-list.json
+
+# Switch back to the default non-root user
+USER 1001

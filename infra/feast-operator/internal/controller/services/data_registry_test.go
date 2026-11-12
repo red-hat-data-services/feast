@@ -163,6 +163,21 @@ var _ = Describe("Data Registry", func() {
 		Expect(feast.isDataRegistryEnabled()).To(BeTrue())
 	})
 
+	It("advertises the Data Registry proxy REST Service without a nonexistent gRPC Service", func() {
+		setAnnotation("true")
+		Expect(feast.ApplyDefaults()).To(Succeed())
+		hostnames := feast.Handler.FeatureStore.Status.ServiceHostnames
+		Expect(hostnames.Registry).To(BeEmpty())
+		Expect(hostnames.RegistryRest).To(Equal(
+			feast.GetFeastServiceName(DataRegistryFeastType) + "." + featureStore.Namespace + ".svc.cluster.local:443",
+		))
+		Expect(hostnames.OfflineStore).To(BeEmpty())
+		Expect(hostnames.OnlineStore).To(BeEmpty())
+		clientConfig, err := feast.getClientFeatureStoreYaml()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(string(clientConfig)).NotTo(ContainSubstring(feast.GetFeastServiceName(RegistryFeastType)))
+	})
+
 	It("ignores spec.feastProject and pins the catalog project to data_registry", func() {
 		setAnnotation("true")
 		latest := &feastdevv1.FeatureStore{}

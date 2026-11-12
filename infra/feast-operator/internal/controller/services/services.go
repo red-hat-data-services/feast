@@ -1619,6 +1619,14 @@ func (feast *FeastServices) getLabels() map[string]string {
 func (feast *FeastServices) setServiceHostnames() error {
 	feast.Handler.FeatureStore.Status.ServiceHostnames = feastdevv1.ServiceHostnames{}
 	domain := svcDomain + ":"
+	if feast.isDataRegistryEnabled() {
+		// Data Registry exposes its REST API through kube-rbac-proxy. The
+		// standard Registry gRPC and REST Services do not exist in this mode.
+		svcName := feast.GetFeastServiceName(DataRegistryFeastType)
+		feast.Handler.FeatureStore.Status.ServiceHostnames.RegistryRest =
+			svcName + "." + feast.Handler.FeatureStore.Namespace + domain + strconv.Itoa(HttpsPort)
+		return nil
+	}
 	if feast.isOfflineServer() {
 		objMeta := feast.initFeastSvc(OfflineFeastType)
 		feast.Handler.FeatureStore.Status.ServiceHostnames.OfflineStore = objMeta.Name + "." + objMeta.Namespace + domain +
