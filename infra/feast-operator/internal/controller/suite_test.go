@@ -47,6 +47,7 @@ var k8sClient client.Client
 var testEnv *envtest.Environment
 
 func TestControllers(t *testing.T) {
+	t.Setenv("POD_NAMESPACE", services.DefaultKubernetesNamespace)
 	RegisterFailHandler(Fail)
 
 	RunSpecs(t, "Controller Suite")
