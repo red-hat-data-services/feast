@@ -24,7 +24,7 @@ dependencies = [
     "numpy>=2.0.0,<3",
     "pandas>=1.4.3,<3",
     "pyarrow<=17.0.0",
-    "pyasn1>=0.6.4",
+    "pyasn1>=0.6.5",
     "pydantic>=2.12.0,<3",
     "pygments>=2.12.0,<3",
     "PyYAML>=5.4.0,<7",
@@ -44,9 +44,9 @@ dependencies = [
     "prometheus_client",
     "psutil",
     "bigtree>=0.19.2",
-    "pyjwt>=2.12.0",
+    "pyjwt>=2.15.1",
     "cryptography>=46.0.7,<47",
-    "aiohttp>=3.13.3",
+    "aiohttp>=3.14.5",
     "python-multipart>=0.0.22",
     "pyOpenSSL>=26.0.0",
     "idna>=3.10",
@@ -137,7 +137,7 @@ snowflake = [
     "snowflake-connector-python[pandas]>=4.0.0,<5",
 ]
 sqlite_vec = ["sqlite-vec==v0.1.6"]
-mcp = ["fastapi_mcp"]
+mcp = ["fastapi_mcp>=0.4.0"]
 
 ci = [
     "build",
