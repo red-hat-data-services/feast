@@ -106,7 +106,7 @@ image = [
 ]
 milvus = [
     "pymilvus==2.4.9",
-    "milvus-lite==2.4.12",
+    "milvus-lite==3.2.1",
     "feast[setuptools]"
 ]
 mssql = ["ibis-framework[mssql]>=9.0.0,<=9.5.0"]

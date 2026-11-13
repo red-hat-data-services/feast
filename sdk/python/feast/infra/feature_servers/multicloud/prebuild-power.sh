@@ -9,7 +9,7 @@ POWER_REQUIREMENTS_FILE="/tmp/power-requirements.txt"
 # Packages that have pre-built ppc64le wheels on the IBM index.
 # duckdb (1.1.3) and pyarrow (17.0.0) are excluded — their pinned
 # versions are not on the IBM index and are built from source below.
-PACKAGES="milvus-lite|pandas|numpy"
+PACKAGES="pandas|numpy"
 
 echo "Finding required package versions from ${REQUIREMENTS_FILE}..."
 
@@ -17,6 +17,12 @@ grep -Ei "^[[:space:]]*(${PACKAGES})([<>=!~].*)?[[:space:]]*$" \
     "${REQUIREMENTS_FILE}" \
     | sed 's/[[:space:]]*\\[[:space:]]*$//' \
     > "${POWER_REQUIREMENTS_FILE}"
+
+# milvus-lite: pinned to the IBM-built 2.4.12 wheel (linked against system
+# OpenSSL - passes the FIPS scan). The 3.2.1 pin used on x86_64/arm64 is a
+# pure wheel whose faiss-cpu dependency has no ppc64le wheels, so it cannot
+# be dependency-resolved here.
+echo "milvus-lite==2.4.12" >> "${POWER_REQUIREMENTS_FILE}"
 
 echo "Power-specific requirements:"
 cat "${POWER_REQUIREMENTS_FILE}"
