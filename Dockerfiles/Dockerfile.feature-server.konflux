@@ -24,7 +24,7 @@ RUN if [ "$(uname -m)" = "ppc64le" ]; then \
 # On ppc64le the prebuild script installs the IBM Power PyArrow wheel;
 # strip pyarrow from the locked list so pip does not install a different version.
 RUN if [ "$(uname -m)" = "ppc64le" ]; then \
-        grep -iv '^pyarrow' /tmp/requirements.txt > /tmp/requirements-filtered.txt && \
+        grep -iv '^pyarrow\|^milvus-lite==\|^faiss-cpu==' /tmp/requirements.txt > /tmp/requirements-filtered.txt && \
         pip install --no-deps -r /tmp/requirements-filtered.txt; \
     else \
         pip install --no-deps -r /tmp/requirements.txt; \
