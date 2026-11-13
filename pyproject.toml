@@ -97,7 +97,7 @@ image = [
 ]
 milvus = [
     "pymilvus>2.5",
-    "milvus-lite==2.4.12",
+    "milvus-lite==3.2.1",
     "feast[setuptools]"
 ]
 mongodb = [
