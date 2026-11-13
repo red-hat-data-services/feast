@@ -46,13 +46,13 @@ arches:
     name: glibc-devel
     evr: 2.34-290.el9_9
     sourcerpm: glibc-2.34-290.el9_9.src.rpm
-  - url: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/aarch64/appstream/os/Packages/k/kernel-headers-5.14.0-741.20.1.el9_9.aarch64.rpm
+  - url: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/aarch64/appstream/os/Packages/k/kernel-headers-5.14.0-741.22.1.el9_9.aarch64.rpm
     repoid: ubi-9-for-aarch64-appstream-rpms
-    size: 2723117
-    checksum: sha256:e5c3d2b1dff0e821853a3a2091446e1f349bf3c58cd20c07bd65ac35104f1c7f
+    size: 2729477
+    checksum: sha256:abed044d95e87ac1486ac817efc648f94d1c98221af5ccf6a109b08898952e4e
     name: kernel-headers
-    evr: 5.14.0-741.20.1.el9_9
-    sourcerpm: kernel-5.14.0-741.20.1.el9_9.src.rpm
+    evr: 5.14.0-741.22.1.el9_9
+    sourcerpm: kernel-5.14.0-741.22.1.el9_9.src.rpm
   - url: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/aarch64/appstream/os/Packages/l/libasan-11.5.0-17.el9_9.aarch64.rpm
     repoid: ubi-9-for-aarch64-appstream-rpms
     size: 411765
@@ -1390,13 +1390,13 @@ arches:
     name: glibc-devel
     evr: 2.34-290.el9_9
     sourcerpm: glibc-2.34-290.el9_9.src.rpm
-  - url: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/ppc64le/appstream/os/Packages/k/kernel-headers-5.14.0-741.20.1.el9_9.ppc64le.rpm
+  - url: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/ppc64le/appstream/os/Packages/k/kernel-headers-5.14.0-741.22.1.el9_9.ppc64le.rpm
     repoid: ubi-9-for-ppc64le-appstream-rpms
-    size: 2746929
-    checksum: sha256:c2113677ee7d6d6d1aa8fc6a6b6a40d5ce5f703fbcc2890a4e2da01f83db9f34
+    size: 2753325
+    checksum: sha256:a0341f962637793192aae52de7e997c020bbf5346463b317c0a8d128487fdd9e
     name: kernel-headers
-    evr: 5.14.0-741.20.1.el9_9
-    sourcerpm: kernel-5.14.0-741.20.1.el9_9.src.rpm
+    evr: 5.14.0-741.22.1.el9_9
+    sourcerpm: kernel-5.14.0-741.22.1.el9_9.src.rpm
   - url: https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi9/9/ppc64le/appstream/os/Packages/l/libasan-11.5.0-17.el9_9.ppc64le.rpm
     repoid: ubi-9-for-ppc64le-appstream-rpms
     size: 443877
