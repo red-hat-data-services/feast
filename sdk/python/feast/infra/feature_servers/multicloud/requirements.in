@@ -26,6 +26,7 @@
 # [minimal] extras: aws, gcp, snowflake, redis, go, mysql, postgres-c,
 # opentelemetry, grpcio, k8s, duckdb, mcp, milvus
 feast[minimal] == 0.67.0
+grpcio >= 1.84.1
 
 # uvicorn-worker 0.3.0 is the only worker wheel on the 3.6 index, and it
 # still calls Config.setup_event_loop. uvicorn 0.36 removed that method.
