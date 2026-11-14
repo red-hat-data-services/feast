@@ -3387,6 +3387,7 @@ spec:
                                 - aerospike
                                 - scylladb
                                 - chronon
+                                - pinecone
                                 type: string
                             required:
                             - secretRef
@@ -10735,6 +10736,7 @@ spec:
                                     - aerospike
                                     - scylladb
                                     - chronon
+                                    - pinecone
                                     type: string
                                 required:
                                 - secretRef
@@ -16353,6 +16355,7 @@ spec:
                                 - aerospike
                                 - scylladb
                                 - chronon
+                                - pinecone
                                 type: string
                             required:
                             - secretRef
@@ -20931,6 +20934,7 @@ spec:
                                     - aerospike
                                     - scylladb
                                     - chronon
+                                    - pinecone
                                     type: string
                                 required:
                                 - secretRef
@@ -24527,6 +24531,7 @@ rules:
   - create
   - get
   - list
+  - watch
 - apiGroups:
   - rbac.authorization.k8s.io
   resourceNames:
@@ -24710,7 +24715,7 @@ spec:
         - /manager
         env:
         - name: RELATED_IMAGE_FEATURE_SERVER
-          value: quay.io/feastdev/feature-server:0.67.0
+          value: quay.io/feastdev/feature-server:0.68.0
         - name: RELATED_IMAGE_CRON_JOB
           value: registry.k8s.io/kubectl:v1.35.9
         - name: RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE
@@ -24723,7 +24728,7 @@ spec:
           value: 230MiB
         - name: OIDC_ISSUER_URL
           value: ""
-        image: quay.io/feastdev/feast-operator:0.67.0
+        image: quay.io/feastdev/feast-operator:0.68.0
         livenessProbe:
           httpGet:
             path: /healthz
