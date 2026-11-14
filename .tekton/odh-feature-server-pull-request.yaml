@@ -16,10 +16,11 @@ metadata:
     build.appstudio.redhat.com/pull_request_number: "{{pull_request_number}}"
     pipelinesascode.tekton.dev/max-keep-runs: "3"
     pipelinesascode.tekton.dev/cancel-in-progress: "true"
-    pipelinesascode.tekton.dev/on-cel-expression: |-
+    pipelinesascode.tekton.dev/on-cel-expression: |
       event == "pull_request"
       && target_branch == "rhoai-3.7-ea.1"
-      && (("sdk/python/feast/**".pathChanged() || "pyproject.toml".pathChanged() || ".tekton/odh-feature-server-pull-request.yaml".pathChanged() || "Dockerfiles/Dockerfile.feature-server.konflux".pathChanged()))
+      && konflux_cluster == "stone-prod-p02"
+      && ( "sdk/python/feast/**".pathChanged() || "pyproject.toml".pathChanged() || ".tekton/odh-feature-server-pull-request.yaml".pathChanged() || "Dockerfiles/Dockerfile.feature-server.konflux".pathChanged())
 spec:
   timeouts:
     pipeline: 4h
