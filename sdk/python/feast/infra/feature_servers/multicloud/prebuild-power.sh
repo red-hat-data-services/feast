@@ -33,6 +33,10 @@ python3.12 -m pip install \
     --extra-index-url "${IBM_PYPI_INDEX}" \
     -r "${POWER_REQUIREMENTS_FILE}"
 
+# grpcio — build from source with system OpenSSL (IBM index lacks 1.84.1)
+echo "Building grpcio from source with system OpenSSL..."
+GRPC_PYTHON_BUILD_SYSTEM_OPENSSL=1 python3.12 -m pip install --no-binary=:all: grpcio==1.84.1
+
 #######################################################
 # Source builds — versions not available on IBM index
 #######################################################
@@ -85,7 +89,7 @@ cd ../../python
 BUILD_TYPE=release python3.12 setup.py build_ext --build-type=release --bundle-arrow-cpp bdist_wheel
 pip install dist/*.whl
 cd "$WORKDIR"
-GRPC_PYTHON_BUILD_SYSTEM_OPENSSL=1 python3.12 -m pip install --no-binary=:all: grpcio==1.62.3
+
 echo "Installed packages:"
 python3.12 -m pip list | grep -Ei \
     'duckdb|grpcio|pyarrow|milvus-lite|pandas|numpy'
