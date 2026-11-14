@@ -8,7 +8,7 @@ POWER_REQUIREMENTS_FILE="/tmp/power-requirements.txt"
 
 # Packages that need Power-compatible prebuilt wheels.
 # pyarrow is intentionally excluded because we pin an IBM-available version below.
-PACKAGES="duckdb|grpcio|pandas|numpy"
+PACKAGES="duckdb|pandas|numpy"
 
 echo "Finding required package versions from ${REQUIREMENTS_FILE}..."
 
@@ -31,6 +31,9 @@ echo "Installing Power packages from IBM index..."
 python3.12 -m pip install \
     --extra-index-url "${IBM_PYPI_INDEX}" \
     -r "${POWER_REQUIREMENTS_FILE}"
+
+echo "Building grpcio from source with system OpenSSL..."
+GRPC_PYTHON_BUILD_SYSTEM_OPENSSL=1 python3.12 -m pip install --no-binary=:all: grpcio==1.84.1
 
 echo "Installing pinned PyArrow version..."
 
