@@ -40,7 +40,7 @@ REQUIRED = [
     "numpy>=2.0.0,<3",
     "pandas>=1.4.3,<3",
     "pyarrow<18.1.0",
-    "pyasn1>=0.6.4",
+    "pyasn1>=0.6.5",
     "pydantic>=2.12.0,<3",
     "pygments>=2.12.0,<3",
     "PyYAML>=5.4.0,<7",
@@ -60,9 +60,9 @@ REQUIRED = [
     "prometheus_client",
     "psutil",
     "bigtree>=0.19.2",
-    "pyjwt>=2.12.0",
+    "pyjwt>=2.15.1",
     "cryptography>=46.0.7,<47",
-    "aiohttp>=3.13.3",
+    "aiohttp>=3.14.5",
     "python-multipart>=0.0.22",
     "pyOpenSSL>=26.0.0",
     "idna>=3.10",
@@ -180,7 +180,7 @@ TORCH_REQUIRED = [
 
 CLICKHOUSE_REQUIRED = ["clickhouse-connect>=0.7.19"]
 
-MCP_REQUIRED = ["fastapi_mcp"]
+MCP_REQUIRED = ["fastapi_mcp>=0.4.0"]
 
 RAG_REQUIRED = [
     "transformers>=4.36.0",
