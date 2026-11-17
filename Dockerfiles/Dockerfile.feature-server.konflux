@@ -38,6 +38,12 @@ COPY --from=builder /src/sdk/python/feast/templates /opt/app-root/lib64/python3.
 COPY --from=builder /src/sdk/python/feast/api/registry/rest/templates /opt/app-root/lib64/python3.12/site-packages/feast/api/registry/rest/templates
 COPY --from=builder /src/sdk/python/feast/infra/utils/snowflake /opt/app-root/lib64/python3.12/site-packages/feast/infra/utils/snowflake
 
+# Remove compromised roots from the vendored bundles found by the image check.
+RUN cp /etc/pki/tls/certs/ca-bundle.crt /opt/app-root/lib/python3.12/site-packages/botocore/cacert.pem && \
+    cp /etc/pki/tls/certs/ca-bundle.crt /opt/app-root/lib/python3.12/site-packages/grpc/_cython/_credentials/roots.pem && \
+    cmp -s /etc/pki/tls/certs/ca-bundle.crt /opt/app-root/lib/python3.12/site-packages/botocore/cacert.pem && \
+    cmp -s /etc/pki/tls/certs/ca-bundle.crt /opt/app-root/lib/python3.12/site-packages/grpc/_cython/_credentials/roots.pem
+
 # Create UI directory structure
 RUN mkdir -p /opt/app-root/lib64/python3.12/site-packages/feast/ui/build && \
     echo '{"projects":[]}' > /opt/app-root/lib64/python3.12/site-packages/feast/ui/build/projects-list.json && \
