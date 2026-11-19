@@ -53,7 +53,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-aws = ["boto3==1.38.27", "fsspec>=2026.6.0", "aiobotocore>2,<3"]
+aws = ["boto3==1.43.117", "fsspec>=2026.6.0", "aiobotocore>=3.10.0,<4"]
 azure = [
     "azure-storage-blob>=0.37.0",
     "azure-identity>=1.6.1",
