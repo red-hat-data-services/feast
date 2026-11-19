@@ -2,8 +2,8 @@
 #    uv pip compile requirements.in --python-platform linux --python-version 3.12 --default-index https://packages.redhat.com/api/pypi/public-rhai/rhoai/3.6/cpu-ubi9/simple/ --index-strategy first-index --prerelease=if-necessary --no-strip-markers --generate-hashes --emit-index-url --upgrade-package feast -o requirements-rhai.txt
 --index-url https://packages.redhat.com/api/pypi/public-rhai/rhoai/3.6/cpu-ubi9/simple/
 
-aiobotocore==3.9.0 \
-    --hash=sha256:4f76ff85656c63ed8b9ba445910cce4cd6a02a326ec0e8374b2e00195f3b80e7
+aiobotocore==3.10.0 \
+    --hash=sha256:de0ccbcb82b6b0009f1b6667f48442e9d0432f9b8bfe6172fa51777cbea89d03
     # via feast
 aiofile==3.12.3 \
     --hash=sha256:019b73f93611701dd4b0da44df2ba67477643610322c0b5dc697e26573dabc2c
@@ -70,13 +70,13 @@ beartype==0.23.1 \
 bigtree==1.5.3 \
     --hash=sha256:bdf016bbefca135cdc5a61ca2d94f7c5fde8a84a544a1ff0ce1da29017f9b705
     # via feast
-boto3==1.43.46 \
-    --hash=sha256:19eaa44912648ad56f706758e58877f698d1a0d9b13307c56a2918b707bb1a21
+boto3==1.43.117 \
+    --hash=sha256:a5b6cd7e67653987fcf0e212187c16f7b58af2ae192e368f7212ddab7c05b25d
     # via
     #   feast
     #   snowflake-connector-python
-botocore==1.43.56 \
-    --hash=sha256:36a0f57e68b619dc17cde8b5cc503d08103cd4df71d86aae033d74cd8e198098
+botocore==1.43.117 \
+    --hash=sha256:5920ef9b3002e1361846549078549d9154a6e0004c22853c01ce7b279d05d495
     # via
     #   aiobotocore
     #   boto3
@@ -297,11 +297,11 @@ griffelib==2.3.2 \
 grpc-google-iam-v1==0.14.5 \
     --hash=sha256:4f7fd54fe041cad09c749755345fd149d790208c50f5c29d11364477972837ff
     # via google-cloud-bigtable
-grpcio==1.83.0 \
-    --hash=sha256:565bb81ac0f9f55591c3afdd2f0eae8df748e11a343878c523e6d33b83465528 \
-    --hash=sha256:ae309ac311bba8eef3c5878325852f2ecfc5f85fc18d061b3e9e2e3aca7979c6 \
-    --hash=sha256:b7a191f843e464f7264651146917199859e49e47d49af120308543750a761300 \
-    --hash=sha256:ecccb24f52e08c4448cfc99204fa1963bf5356a25b14766b69a92f75f2c0788e
+grpcio==1.84.1 \
+    --hash=sha256:e0dcc7b588e7b7dd3363317296983db23a26af8baa5884db15a10fc0c8534186 \
+    --hash=sha256:474408c92b27c823ea6aab2315e2ea52d5a4e0040b37ce1e65e89d9149c48205 \
+    --hash=sha256:02612f3c19ed3dd885e2fff1236bf5629e5b43b5aa84c3290b0d5f62f26b0ef7 \
+    --hash=sha256:446e7876b9b991fa124c1d414899fa7cf95f89a3e71237ea0161863dc0b2c09f
     # via
     #   feast
     #   google-api-core
@@ -316,14 +316,14 @@ grpcio==1.83.0 \
     #   grpcio-status
     #   milvus-lite
     #   pymilvus
-grpcio-health-checking==1.83.0 \
-    --hash=sha256:ae598ca483d3a27d1993ba8024a7045e939a81a4c10d48bf44aaaeacb6147c7a
+grpcio-health-checking==1.84.1 \
+    --hash=sha256:39833c378ef2570b9d9d6f247df16c1038a94ce1222e93740ef5daa7d62d0671
     # via feast
-grpcio-reflection==1.83.0 \
-    --hash=sha256:c00c523b47bf10ab30b4c1d2551eb529fcdeb15b4608bf1be469f740ceea1e84
+grpcio-reflection==1.84.1 \
+    --hash=sha256:85d39fa166294159cb72b292429fdd711d64b5fb3495f744d4bc46b8a1a6fb87
     # via feast
-grpcio-status==1.83.0 \
-    --hash=sha256:23eed8d909d809548be28b48b64467331671a8fff4aa0d5d8cdd4aee4b5513d6
+grpcio-status==1.84.1 \
+    --hash=sha256:5a1455bf5b39fe2a3d09d71661e59c97622c73888ad11f13109ce82220b88218
     # via google-api-core
 gunicorn==26.0.0 \
     --hash=sha256:4a51cbf982609cea6a9689aa162d23e9ef7b1a9950aa74425b76cfee5862e8c8
