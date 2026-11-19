@@ -43,6 +43,13 @@ pyarrow == 20.0.0
 
 certifi >= 2026.10.23
 
+# eMudhra CA remediation: botocore >= 1.43.117 refreshes vendored cacert.pem.
+# aiobotocore 3.10.0 is the RHAI 3.6 release that allows that botocore window
+# (botocore>=1.43.115,<1.43.118); boto3 must match the same botocore series.
+aiobotocore == 3.10.0
+boto3 == 1.43.117
+botocore == 1.43.117
+
 # Build tools for hermetic `pip install --no-deps --no-build-isolation .`
 # setuptools upper bound matches pyproject.toml build-system.requires.
 setuptools >= 68.0, < 81

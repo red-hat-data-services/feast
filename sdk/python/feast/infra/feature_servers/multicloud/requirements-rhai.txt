@@ -2,8 +2,8 @@
 #    uv pip compile requirements.in --constraint /tmp/rhai-grpcio-preserve-constraints.txt --python-platform linux --python-version 3.12 --default-index https://packages.redhat.com/api/pypi/public-rhai/rhoai/3.6/cpu-ubi9/simple/ --index-strategy first-index --prerelease=if-necessary --no-strip-markers --generate-hashes --emit-index-url --overrides /tmp/rhai-pandas-override.txt -o requirements-rhai.txt
 --index-url https://packages.redhat.com/api/pypi/public-rhai/rhoai/3.6/cpu-ubi9/simple/
 
-aiobotocore==3.9.0 \
-    --hash=sha256:4f76ff85656c63ed8b9ba445910cce4cd6a02a326ec0e8374b2e00195f3b80e7
+aiobotocore==3.10.0 \
+    --hash=sha256:2c62432aa0fd8775beb6cf35b1cc37301efb0fab642e8e7ff81bf1a77d9e7005
     # via
     #   -c /tmp/rhai-grpcio-preserve-constraints.txt
     #   feast
@@ -99,14 +99,14 @@ bigtree==1.5.3 \
     # via
     #   -c /tmp/rhai-grpcio-preserve-constraints.txt
     #   feast
-boto3==1.43.46 \
-    --hash=sha256:19eaa44912648ad56f706758e58877f698d1a0d9b13307c56a2918b707bb1a21
+boto3==1.43.117 \
+    --hash=sha256:2ebfa6bf99396c7317106c6e94e3975142a2aba0721265ddfc364cda752de4d2
     # via
     #   -c /tmp/rhai-grpcio-preserve-constraints.txt
     #   feast
     #   snowflake-connector-python
-botocore==1.43.56 \
-    --hash=sha256:36a0f57e68b619dc17cde8b5cc503d08103cd4df71d86aae033d74cd8e198098
+botocore==1.43.117 \
+    --hash=sha256:396feefbe5034235cefd4430950b8494ebdd7a0ee312bb4c2cac3d282c0e6e1b
     # via
     #   -c /tmp/rhai-grpcio-preserve-constraints.txt
     #   aiobotocore
