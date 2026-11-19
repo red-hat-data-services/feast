@@ -58,7 +58,7 @@ dependencies = [
 aerospike = [
     "aerospike>=19.0.0,<20.0.0",
 ]
-aws = ["boto3>=1.38.27", "fsspec>=2024.1.0", "aiobotocore>=2"]
+aws = ["boto3>=1.43.117", "fsspec>=2024.1.0", "aiobotocore>=3.10.0"]
 azure = [
     "azure-storage-blob>=0.37.0",
     "azure-identity>=1.6.1",
