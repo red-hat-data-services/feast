@@ -74,6 +74,13 @@ RUN UI_DIR=$(python -c "import feast.ui as ui; print(ui.__path__)" | tr -d "[']"
     echo '{"projects":[]}' > "${UI_DIR}/build/projects-list.json" && \
     chmod g+w "${UI_DIR}/build/projects-list.json"
 
+# Remove compromised roots from the vendored bundles found by the image check.
+RUN for sp_dir in /opt/app-root/lib/python3.12/site-packages /opt/app-root/lib64/python3.12/site-packages; do \
+        for bundle in "$sp_dir/botocore/cacert.pem" "$sp_dir/grpc/_cython/_credentials/roots.pem"; do \
+            [ -f "$bundle" ] && cp /etc/pki/tls/certs/ca-bundle.crt "$bundle"; \
+        done; \
+    done; true
+
 # default user
 USER 1001
 
