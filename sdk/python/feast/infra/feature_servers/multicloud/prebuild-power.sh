@@ -51,9 +51,10 @@ cd $WORKDIR
 #######################################################
 # Build gRPC  (Python package)
 #######################################################
+# grpcio >= 1.84.1 removes eMudhra roots from vendored roots.pem.
 echo "Building grpcio..."
 export GRPC_PYTHON_BUILD_SYSTEM_OPENSSL=1
-pip install grpcio==1.62.3
+pip install --no-binary=:all: grpcio==1.85.1
 
 #######################################################
 # Build Pyarrow  (Python package)
