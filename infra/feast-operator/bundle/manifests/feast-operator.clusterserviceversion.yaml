@@ -176,10 +176,10 @@ metadata:
         }
       ]
     capabilities: Basic Install
-    createdAt: "2026-11-04T10:32:07Z"
+    createdAt: "2026-11-10T22:05:57Z"
     operators.operatorframework.io/builder: operator-sdk-v1.41.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
-  name: feast-operator.v0.67.0
+  name: feast-operator.v0.68.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -482,6 +482,7 @@ spec:
           - create
           - get
           - list
+          - watch
         - apiGroups:
           - rbac.authorization.k8s.io
           resourceNames:
@@ -573,7 +574,7 @@ spec:
                 - /manager
                 env:
                 - name: RELATED_IMAGE_FEATURE_SERVER
-                  value: quay.io/feastdev/feature-server:0.67.0
+                  value: quay.io/feastdev/feature-server:0.68.0
                 - name: RELATED_IMAGE_CRON_JOB
                   value: registry.k8s.io/kubectl:v1.35.9
                 - name: RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE
@@ -585,7 +586,7 @@ spec:
                 - name: GOMEMLIMIT
                   value: 230MiB
                 - name: OIDC_ISSUER_URL
-                image: quay.io/feastdev/feast-operator:0.67.0
+                image: quay.io/feastdev/feast-operator:0.68.0
                 livenessProbe:
                   httpGet:
                     path: /healthz
@@ -675,10 +676,10 @@ spec:
     name: Feast Community
     url: https://lf-aidata.atlassian.net/wiki/spaces/FEAST/
   relatedImages:
-  - image: quay.io/feastdev/feature-server:0.67.0
+  - image: quay.io/feastdev/feature-server:0.68.0
     name: feature-server
   - image: registry.k8s.io/kubectl:v1.35.9
     name: cron-job
   - image: quay.io/opendatahub/odh-kube-rbac-proxy@sha256:acd9de62b8339dbacd39635317e5e596e09a70ae26ac9eccdde4a4124388740f
     name: odh-kube-rbac-proxy-image
-  version: 0.67.0
+  version: 0.68.0

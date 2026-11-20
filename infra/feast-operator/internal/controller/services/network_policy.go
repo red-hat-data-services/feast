@@ -18,8 +18,10 @@ package services
 
 import (
 	"encoding/json"
+	"fmt"
 
 	feastdevv1 "github.com/feast-dev/feast/infra/feast-operator/api/v1"
+	"github.com/feast-dev/feast/infra/feast-operator/internal/controller/capabilities"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,15 +35,16 @@ import (
 
 // NetworkPolicy name suffixes appended to the FeatureStore name.
 const (
-	npSuffixSameNs     = "-allow-same-ns"
-	npSuffixDashboard  = "-allow-dashboard"
-	npSuffixWorkbench  = "-allow-workbench"
-	npSuffixIngress    = "-allow-ingress-controller"
-	npSuffixRemoteReg  = "-allow-remote-registry"
-	npSuffixMonitoring = "-allow-monitoring"
-	npSuffixDataReg    = "-allow-data-registry"
-	npSuffixEgress     = "-allow-egress"
-	npSuffixCronJob    = "-cronjob"
+	npSuffixSameNs      = "-allow-same-ns"
+	npSuffixDashboard   = "-allow-dashboard"
+	npSuffixWorkbench   = "-allow-workbench"
+	npSuffixIngress     = "-allow-ingress-controller"
+	npSuffixRemoteReg   = "-allow-remote-registry"
+	npSuffixOperatorReg = "-allow-operator-registry-rest"
+	npSuffixMonitoring  = "-allow-monitoring"
+	npSuffixDataReg     = "-allow-data-registry"
+	npSuffixEgress      = "-allow-egress"
+	npSuffixCronJob     = "-cronjob"
 
 	// Labels used in cross-namespace selectors (not owned by us).
 	//
@@ -66,6 +69,12 @@ const (
 	dataRegistryUIPodLabel         = "app.kubernetes.io/name"
 	dataRegistryUIPodValue         = "data-registry"
 	workbenchFeastIntegrationLabel = "opendatahub.io/feast-integration"
+	workbenchPodLabel              = "opendatahub.io/workbenches"
+	operatorNamespaceLabel         = "kubernetes.io/metadata.name"
+	operatorPodNameLabel           = "app.kubernetes.io/name"
+	operatorPodNameValue           = "feast-operator"
+	operatorPodControlPlaneLabel   = "control-plane"
+	operatorPodControlPlaneValue   = "controller-manager"
 	ingressNamespaceLabel          = "kubernetes.io/metadata.name"
 	ingressNamespaceValue          = "ingress-nginx"
 	ingressPodNameLabel            = "app.kubernetes.io/name"
@@ -91,7 +100,12 @@ func (feast *FeastServices) reconcileNetworkPolicies() error {
 
 	ports := feast.collectEnabledServicePorts()
 	if len(ports) == 0 {
-		return feast.deleteNetworkPolicies(npSuffixSameNs, npSuffixDashboard, npSuffixWorkbench, npSuffixIngress, npSuffixRemoteReg, npSuffixMonitoring)
+		return feast.deleteNetworkPolicies(npSuffixSameNs, npSuffixDashboard, npSuffixWorkbench, npSuffixIngress, npSuffixRemoteReg, npSuffixOperatorReg, npSuffixMonitoring)
+	}
+	operatorRegistryPorts := feast.collectDashboardPorts()
+	operatorNamespace := capabilities.OperatorNamespace()
+	if len(operatorRegistryPorts) > 0 && operatorNamespace == "" {
+		return fmt.Errorf("POD_NAMESPACE is required for the operator-to-registry REST NetworkPolicy")
 	}
 
 	selectorLabels := feast.getSelectorLabels()
@@ -180,6 +194,21 @@ func (feast *FeastServices) reconcileNetworkPolicies() error {
 		return err
 	}
 
+	// The operator reads permissions through the local Registry REST API.
+	// Its pod has different labels from Feast-managed service pods, so it
+	// needs a separate cross-namespace allowance on the REST target port.
+	if len(operatorRegistryPorts) > 0 {
+		if err := feast.applyNetworkPolicy(
+			GetFeastName(cr)+npSuffixOperatorReg,
+			selectorLabels,
+			buildOperatorRegistryIngressRules(operatorNamespace, operatorRegistryPorts),
+		); err != nil {
+			return err
+		}
+	} else if err := feast.deleteNetworkPolicies(npSuffixOperatorReg); err != nil {
+		return err
+	}
+
 	// Monitoring cross-namespace → metrics port.
 	metricsPorts := feast.collectMetricsPorts()
 	if len(metricsPorts) > 0 {
@@ -254,7 +283,7 @@ func (feast *FeastServices) reconcileDataRegistryNetworkPolicies() error {
 	if err := feast.applyNetworkPolicy(
 		GetFeastName(cr)+npSuffixWorkbench,
 		selectorLabels,
-		buildWorkbenchIngressRules(proxyPorts),
+		buildDataRegistryWorkbenchIngressRules(proxyPorts),
 	); err != nil {
 		return err
 	}
@@ -292,7 +321,7 @@ func (feast *FeastServices) reconcileDataRegistryNetworkPolicies() error {
 	}
 
 	// Clean up standard-mode-only policies.
-	if err := feast.deleteNetworkPolicies(npSuffixDashboard, npSuffixRemoteReg); err != nil {
+	if err := feast.deleteNetworkPolicies(npSuffixDashboard, npSuffixRemoteReg, npSuffixOperatorReg); err != nil {
 		return err
 	}
 
@@ -300,10 +329,17 @@ func (feast *FeastServices) reconcileDataRegistryNetworkPolicies() error {
 	return nil
 }
 
+// CleanupFeatureStoreNetworkPolicies removes every operand NetworkPolicy for
+// this FeatureStore. CleanupRejectedDataRegistry calls it before releasing
+// DataRegistryFinalizer. A normal FeatureStore reconcile does not call it.
+func (feast *FeastServices) CleanupFeatureStoreNetworkPolicies() error {
+	return feast.deleteAllNetworkPolicies()
+}
+
 // deleteAllNetworkPolicies removes all operand NetworkPolicies owned by
 // this FeatureStore.
 func (feast *FeastServices) deleteAllNetworkPolicies() error {
-	return feast.deleteNetworkPolicies(npSuffixSameNs, npSuffixDashboard, npSuffixWorkbench, npSuffixIngress, npSuffixRemoteReg, npSuffixMonitoring, npSuffixDataReg, npSuffixEgress, npSuffixCronJob)
+	return feast.deleteNetworkPolicies(npSuffixSameNs, npSuffixDashboard, npSuffixWorkbench, npSuffixIngress, npSuffixRemoteReg, npSuffixOperatorReg, npSuffixMonitoring, npSuffixDataReg, npSuffixEgress, npSuffixCronJob)
 }
 
 // --- Port collection helpers ---
@@ -478,6 +514,15 @@ func buildWorkbenchIngressRules(ports []*npac.NetworkPolicyPortApplyConfiguratio
 	}
 }
 
+func buildDataRegistryWorkbenchIngressRules(ports []*npac.NetworkPolicyPortApplyConfiguration) []*npac.NetworkPolicyIngressRuleApplyConfiguration {
+	rules := buildWorkbenchIngressRules(ports)
+	rules[0].WithFrom(npac.NetworkPolicyPeer().
+		WithNamespaceSelector(metaac.LabelSelector()).
+		WithPodSelector(metaac.LabelSelector().
+			WithMatchLabels(map[string]string{workbenchPodLabel: "true"})))
+	return rules
+}
+
 func applicationsNamespaceIngressRule(podLabel, podValue string, ports []*npac.NetworkPolicyPortApplyConfiguration) *npac.NetworkPolicyIngressRuleApplyConfiguration {
 	return npac.NetworkPolicyIngressRule().
 		WithFrom(
@@ -536,6 +581,21 @@ func buildRemoteRegistryIngressRules(ports []*npac.NetworkPolicyPortApplyConfigu
 				WithPodSelector(metaac.LabelSelector().
 					WithMatchLabels(map[string]string{
 						ManagedByLabelKey: ManagedByLabelValue,
+					}))).
+			WithPorts(ports...),
+	}
+}
+
+func buildOperatorRegistryIngressRules(operatorNamespace string, ports []*npac.NetworkPolicyPortApplyConfiguration) []*npac.NetworkPolicyIngressRuleApplyConfiguration {
+	return []*npac.NetworkPolicyIngressRuleApplyConfiguration{
+		npac.NetworkPolicyIngressRule().
+			WithFrom(npac.NetworkPolicyPeer().
+				WithNamespaceSelector(metaac.LabelSelector().
+					WithMatchLabels(map[string]string{operatorNamespaceLabel: operatorNamespace})).
+				WithPodSelector(metaac.LabelSelector().
+					WithMatchLabels(map[string]string{
+						operatorPodNameLabel:         operatorPodNameValue,
+						operatorPodControlPlaneLabel: operatorPodControlPlaneValue,
 					}))).
 			WithPorts(ports...),
 	}

@@ -98,7 +98,7 @@ type FeatureStoreReconciler struct {
 // +kubebuilder:rbac:groups=core,resources=serviceaccounts,verbs=get;list;create;update;watch;delete
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;create;update;watch;delete
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterrolebindings,verbs=get;list;create;watch;update;delete
-// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles,verbs=create;get;list
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles,verbs=create;get;list;watch
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles,resourceNames=feast-data-registry-admin;feast-data-registry-editor;feast-data-registry-viewer;feast-discover-namespaces;feast-oidc-token-review;feast-token-review-cluster-role,verbs=update;delete
 // bind on ClusterRole system:auth-delegator is listed in config/rbac/role.yaml (controller-gen
 // markers cannot express resourceNames containing ':').
@@ -194,28 +194,38 @@ func (r *FeatureStoreReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 	}
 
+	// Data Registry never uses permission-derived auto-access RBAC. Remove
+	// stale bindings even if a mode switch fails before reaching Ready.
+	if cr.DeletionTimestamp == nil && services.IsDataRegistryCREnabled(cr) {
+		if err := access.CleanupAutoAccessRBAC(ctx, r.Client, cr.Namespace, cr.Name); err != nil {
+			logger.Error(err, "Failed to cleanup stale auto-access RBAC for data registry")
+		}
+	}
+
 	if recErr == nil && cr.DeletionTimestamp == nil && apimeta.IsStatusConditionTrue(cr.Status.Conditions, feastdevv1.ReadyType) {
 		if err := access.EnsureNamespaceLabel(ctx, r.Client, cr.Namespace); err != nil {
 			logger.Error(err, "Failed to add Feast label to namespace")
 		}
 		r.addToNamespaceRegistry(ctx, cr)
 		r.addToOpenLineageDiscovery(ctx, cr)
-		policies, err := r.fetchPermissionsFromRegistry(ctx, cr)
-		if err != nil {
-			logger.Error(err, "Failed to fetch permissions from registry")
-		}
-		if err != nil || len(policies) == 0 || cr.Status.ClientConfigMap == "" {
-			logger.V(1).Info("Auto-access prerequisites missing or registry unreachable; cleaning up stale auto-access RBAC",
-				"policies", len(policies),
-				"clientConfigMapSet", cr.Status.ClientConfigMap != "",
-				"fetchError", err != nil,
-			)
-			if err := access.CleanupAutoAccessRBAC(ctx, r.Client, cr.Namespace, cr.Name); err != nil {
-				logger.Error(err, "Failed to cleanup stale auto-access RBAC")
+		if !services.IsDataRegistryCREnabled(cr) {
+			policies, err := r.fetchPermissionsFromRegistry(ctx, cr)
+			if err != nil {
+				logger.Error(err, "Failed to fetch permissions from registry")
 			}
-		} else {
-			if err := access.ReconcileAutoAccessRBAC(ctx, r.Client, r.Scheme, cr, cr.Namespace, cr.Name, cr.Status.ClientConfigMap, policies); err != nil {
-				logger.Error(err, "Failed to reconcile auto-access RBAC")
+			if err != nil || len(policies) == 0 || cr.Status.ClientConfigMap == "" {
+				logger.V(1).Info("Auto-access prerequisites missing or registry unreachable; cleaning up stale auto-access RBAC",
+					"policies", len(policies),
+					"clientConfigMapSet", cr.Status.ClientConfigMap != "",
+					"fetchError", err != nil,
+				)
+				if err := access.CleanupAutoAccessRBAC(ctx, r.Client, cr.Namespace, cr.Name); err != nil {
+					logger.Error(err, "Failed to cleanup stale auto-access RBAC")
+				}
+			} else {
+				if err := access.ReconcileAutoAccessRBAC(ctx, r.Client, r.Scheme, cr, cr.Namespace, cr.Name, cr.Status.ClientConfigMap, policies); err != nil {
+					logger.Error(err, "Failed to reconcile auto-access RBAC")
+				}
 			}
 		}
 	}
@@ -272,6 +282,11 @@ func (r *FeatureStoreReconciler) finalizeFeatureStore(ctx context.Context, cr *f
 }
 
 func (r *FeatureStoreReconciler) fetchPermissionsFromRegistry(ctx context.Context, cr *feastdevv1.FeatureStore) ([]registry.PermissionPolicy, error) {
+	// Data Registry uses kube-rbac-proxy and server-side SAR rather than
+	// FeatureStore auto-access policies. It has no intra-communication token.
+	if services.IsDataRegistryCREnabled(cr) {
+		return nil, nil
+	}
 	logger := log.FromContext(ctx)
 	registryRest := cr.Status.ServiceHostnames.RegistryRest
 	if registryRest == "" {
@@ -435,7 +450,9 @@ func (r *FeatureStoreReconciler) countOtherFeatureStoresInCluster(ctx context.Co
 // entry is still present. Callers write status after this returns: removing
 // the finalizer updates the CR, and that response replaces .status.
 func removeRejectedDataRegistryWorkload(feast services.FeastServices) (cleanupErr, registryErr error) {
-	cleanupErr = feast.CleanupDataRegistry()
+	// Objects, then NetworkPolicies, then the finalizer. A failed policy
+	// delete leaves the finalizer in place so this reconcile is retried.
+	cleanupErr = feast.CleanupRejectedDataRegistry()
 	if cleanupErr != nil {
 		return cleanupErr, nil
 	}

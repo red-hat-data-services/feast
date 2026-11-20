@@ -26,6 +26,7 @@ import (
 	"github.com/feast-dev/feast/infra/feast-operator/internal/controller/services"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,6 +37,74 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
+
+func TestDataRegistryPermissionFetchSkipsMissingIntraCommunicationConfigMap(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := feastdevv1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	cr := &feastdevv1.FeatureStore{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "registry",
+			Namespace:   "data-registry-test",
+			Annotations: map[string]string{services.DataRegistryAnnotation: "true"},
+		},
+		Status: feastdevv1.FeatureStoreStatus{
+			ServiceHostnames: feastdevv1.ServiceHostnames{RegistryRest: "data-registry.example:443"},
+			Applied: feastdevv1.FeatureStoreSpec{
+				FeastProject: services.DataRegistryProject,
+			},
+		},
+	}
+	r := &FeatureStoreReconciler{Client: fake.NewClientBuilder().WithScheme(scheme).Build()}
+	policies, err := r.fetchPermissionsFromRegistry(ctx, cr)
+	if err != nil || len(policies) != 0 {
+		t.Fatalf("data-registry permission fetch should be skipped: policies=%v err=%v", policies, err)
+	}
+
+	delete(cr.Annotations, services.DataRegistryAnnotation)
+	_, err = r.fetchPermissionsFromRegistry(ctx, cr)
+	if !apierrors.IsNotFound(err) {
+		t.Fatalf("standard FeatureStore should still read its token ConfigMap, got %v", err)
+	}
+}
+
+func TestDataRegistryModeCleansStaleAutoAccessBeforeReady(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := feastdevv1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	const namespace = "not-designated"
+	const name = "registry"
+	roleName := "feast-" + namespace + "--" + name + "-viewer"
+	cr := &feastdevv1.FeatureStore{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        name,
+			Namespace:   namespace,
+			Annotations: map[string]string{services.DataRegistryAnnotation: "true"},
+		},
+		Spec: feastdevv1.FeatureStoreSpec{FeastProject: services.DataRegistryProject},
+	}
+	role := &rbacv1.Role{ObjectMeta: metav1.ObjectMeta{Name: roleName, Namespace: namespace}}
+	cl := fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(cr).WithObjects(
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}, cr, role,
+	).Build()
+	r := &FeatureStoreReconciler{Client: cl, Scheme: scheme}
+	_, _ = r.Reconcile(ctx, reconcile.Request{NamespacedName: types.NamespacedName{Name: name, Namespace: namespace}})
+
+	err := cl.Get(ctx, client.ObjectKeyFromObject(role), &rbacv1.Role{})
+	if !apierrors.IsNotFound(err) {
+		t.Fatalf("stale auto-access Role should be removed even when Data Registry is not Ready, got %v", err)
+	}
+}
 
 func TestUnannotatedDataRegistryReportsStatus(t *testing.T) {
 	t.Setenv("POD_NAMESPACE", "operator-ns")
