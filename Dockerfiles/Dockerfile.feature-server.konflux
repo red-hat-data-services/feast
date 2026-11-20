@@ -3,14 +3,38 @@ FROM registry.access.redhat.com/ubi9/python-312:1@sha256:5b184c2acfe9e2eb9df1a24
 
 USER 0
 
-# Power (ppc64le) only: Install a known stable pyarrow version
-# to avoid compatibility issues with the version from requirements.
+COPY sdk/python/requirements/py3.12-minimal-requirements.txt /tmp/requirements.txt
+# Pinned, hashed requirements (resolved from the Cachi2 cache) and the
+# Power (ppc64le) specific requirement files.
+COPY sdk/python/feast/infra/feature_servers/multicloud/requirements-ppc64le.txt /tmp/requirements-ppc64le.txt
+COPY sdk/python/feast/infra/feature_servers/multicloud/requirements-ppc64le2.txt /tmp/requirements-ppc64le2.txt
+
+# Power (ppc64le) only: install prebuilt ppc64le wheels. Each file declares its
+# own --index-url, so install them separately (a single pip run would keep only
+# one index). --no-deps is required because the files are hash-pinned.
 RUN if [ "$(uname -m)" = "ppc64le" ]; then \
-        echo "Power architecture detected. Installing pinned pyarrow and re2 version..."; \
-        pip install pyarrow==22.0.0 re2==20220401; \
+        echo "Power architecture detected. Installing ppc64le-specific packages..."; \
+        pip install --no-deps -r /tmp/requirements-ppc64le2.txt && \
+        pip install --no-deps -r /tmp/requirements-ppc64le.txt; \
     else \
-        echo "Non-Power architecture detected; skipping Power-specific pyarrow installation."; \
+        echo "Non-Power architecture detected; skipping Power-specific package installation."; \
     fi
+
+# Install the remaining pinned dependencies. On ppc64le, drop every entry
+# (including its --hash continuation lines) for packages installed above,
+# plus faiss-cpu, which is not installed on Power.
+RUN if [ "$(uname -m)" = "ppc64le" ]; then \
+        sed -n 's/^\([A-Za-z0-9_.-]*\)==.*/\1/p' /tmp/requirements-ppc64le.txt /tmp/requirements-ppc64le2.txt \
+            | tr 'A-Z' 'a-z' > /tmp/ppc64le-packages.txt && \
+        echo "faiss-cpu" >> /tmp/ppc64le-packages.txt && \
+        awk 'NR==FNR { skip[$1]=1; next } /^[^[:space:]#]/ { split($0, a, "=="); s = (tolower(a[1]) in skip) } !s' \
+            /tmp/ppc64le-packages.txt /tmp/requirements.txt > /tmp/requirements-filtered.txt && \
+        pip install --no-deps -r /tmp/requirements-filtered.txt; \
+    else \
+        echo "Non-Power architecture detected"; \
+        pip install --no-deps -r /tmp/requirements.txt; \
+    fi
+
 
 # Install feast from local source (dependencies resolve from Cachi2 cache)
 COPY sdk/python/feast/infra/feature_servers/multicloud/requirements.txt /tmp/feast-version.txt
@@ -18,7 +42,7 @@ COPY pyproject.toml README.md /src/
 COPY sdk/python /src/sdk/python
 WORKDIR /src
 RUN SETUPTOOLS_SCM_PRETEND_VERSION=$(awk -F'==' 'NR==2{gsub(/[[:space:]]/,"",$2); print $2}' /tmp/feast-version.txt) \
-    pip install '.[minimal]'
+    pip install --no-deps '.[minimal]'
 
 # Stage 2: Minimal runtime image (no compilers or dev headers)
 FROM registry.access.redhat.com/ubi9/python-312-minimal:9.9@sha256:612eb994cd4255fbafd0de6967efba8d72b62c812058e68e28974458529d0523
@@ -72,3 +96,4 @@ LABEL com.redhat.component="odh-feature-server" \
       io.openshift.expose-services="" \
       io.k8s.display-name="odh-feature-server" \
       io.k8s.description="odh-feature-server"
+
