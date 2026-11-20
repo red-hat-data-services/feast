@@ -92,8 +92,8 @@ gcp = [
 ge = ["great_expectations>=0.15.41,<1"]
 go = ["cffi>=1.15.0"]
 grpcio = [
-    # Cap at 1.81.1 to match RH-indexed ppc64le wheel.
-    "grpcio>=1.56.2,<=1.81.1",
+    # Cap at the first eMudhra-clean grpcio release.
+    "grpcio>=1.56.2,<=1.84.1",
     "grpcio-reflection>=1.56.2,<=1.81.1",
     "grpcio-health-checking>=1.56.2,<=1.81.1",
 ]
