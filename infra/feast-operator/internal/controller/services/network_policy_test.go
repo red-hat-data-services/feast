@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"os"
 
 	feastdevv1 "github.com/feast-dev/feast/infra/feast-operator/api/v1"
 	"github.com/feast-dev/feast/infra/feast-operator/internal/controller/handler"
@@ -26,11 +27,15 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	npac "k8s.io/client-go/applyconfigurations/networking/v1"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 func newTestFeatureStore(name, namespace string) *feastdevv1.FeatureStore {
@@ -87,6 +92,41 @@ func setupFeastServices(ctx context.Context, featureStore *feastdevv1.FeatureSto
 	return feast
 }
 
+func expectDashboardPodLabels(ports []*npac.NetworkPolicyPortApplyConfiguration, podLabels []string) {
+	rules := buildDashboardIngressRules(ports)
+	Expect(rules).To(HaveLen(len(podLabels)))
+	for i, podLabel := range podLabels {
+		Expect(rules[i].From).To(HaveLen(2))
+		Expect(rules[i].From[0].NamespaceSelector.MatchLabels).To(HaveKeyWithValue(
+			dashboardNamespaceLabel, dashboardNamespaceValue,
+		))
+		Expect(rules[i].From[1].NamespaceSelector.MatchLabels).To(HaveKeyWithValue(
+			customAppNamespaceLabel, customAppNamespaceValue,
+		))
+		for _, peer := range rules[i].From {
+			Expect(peer.PodSelector.MatchLabels).To(HaveKeyWithValue(podLabel, "true"))
+		}
+		Expect(rules[i].Ports).To(HaveLen(len(ports)))
+		Expect(rules[i].Ports[0].Port.IntVal).To(Equal(ports[0].Port.IntVal))
+	}
+}
+
+func withPlatformTypeEnv(value string) {
+	original, existed := os.LookupEnv(platformTypeEnv)
+	if value == "" {
+		Expect(os.Unsetenv(platformTypeEnv)).To(Succeed())
+	} else {
+		Expect(os.Setenv(platformTypeEnv, value)).To(Succeed())
+	}
+	DeferCleanup(func() {
+		if existed {
+			Expect(os.Setenv(platformTypeEnv, original)).To(Succeed())
+		} else {
+			Expect(os.Unsetenv(platformTypeEnv)).To(Succeed())
+		}
+	})
+}
+
 func getNetworkPolicy(ctx context.Context, name, namespace string) *networkingv1.NetworkPolicy {
 	np := &networkingv1.NetworkPolicy{}
 	err := k8sClient.Get(ctx, types.NamespacedName{Name: name, Namespace: namespace}, np)
@@ -104,6 +144,15 @@ var _ = Describe("NetworkPolicy", func() {
 	)
 
 	BeforeEach(func() {
+		originalNamespace, hadNamespace := os.LookupEnv("POD_NAMESPACE")
+		Expect(os.Setenv("POD_NAMESPACE", "feast-operator-system")).To(Succeed())
+		DeferCleanup(func() {
+			if hadNamespace {
+				Expect(os.Setenv("POD_NAMESPACE", originalNamespace)).To(Succeed())
+			} else {
+				Expect(os.Unsetenv("POD_NAMESPACE")).To(Succeed())
+			}
+		})
 		ctx = context.Background()
 		featureStore = newTestFeatureStore("np-test-fs", DefaultNs)
 		Expect(k8sClient.Create(ctx, featureStore)).To(Succeed())
@@ -111,6 +160,7 @@ var _ = Describe("NetworkPolicy", func() {
 	})
 
 	AfterEach(func() {
+		resetInstallPlatformForTest()
 		Expect(feast.deleteAllNetworkPolicies()).To(Succeed())
 		Expect(k8sClient.Delete(ctx, featureStore)).To(Succeed())
 	})
@@ -194,19 +244,81 @@ var _ = Describe("NetworkPolicy", func() {
 		})
 	})
 
+	Describe("install platform detection", func() {
+		It("should select the RHOAI dashboard when rhods-operator is installed", func() {
+			withPlatformTypeEnv("")
+			condition := &unstructured.Unstructured{Object: map[string]any{
+				"apiVersion": "operators.coreos.com/v2",
+				"kind":       "OperatorCondition",
+				"metadata": map[string]any{
+					"name": "rhods-operator.3.6.0",
+				},
+			}}
+			SetInstallPlatformReader(fake.NewClientBuilder().WithScheme(runtime.NewScheme()).WithObjects(condition).Build())
+
+			feast.ensureInstallPlatform()
+
+			Expect(currentInstallPlatform()).To(Equal(installPlatformRHOAI))
+			expectDashboardPodLabels(feast.collectDashboardPorts(), []string{dashboardPodLabelRHOAI})
+		})
+
+		It("should select ODH dashboards when no RHOAI operator is present", func() {
+			withPlatformTypeEnv("")
+			SetInstallPlatformReader(fake.NewClientBuilder().WithScheme(runtime.NewScheme()).Build())
+
+			feast.ensureInstallPlatform()
+
+			Expect(currentInstallPlatform()).To(Equal(installPlatformODH))
+			expectDashboardPodLabels(feast.collectDashboardPorts(), []string{dashboardPodLabelLegacy, dashboardPodLabelODH})
+		})
+
+		It("should honor an explicit ODH_PLATFORM_TYPE", func() {
+			withPlatformTypeEnv("ManagedRHOAI")
+			SetInstallPlatformReader(fake.NewClientBuilder().WithScheme(runtime.NewScheme()).Build())
+
+			feast.ensureInstallPlatform()
+
+			Expect(currentInstallPlatform()).To(Equal(installPlatformRHOAI))
+		})
+	})
+
 	Describe("buildDashboardIngressRules", func() {
-		It("should create a rule with namespace+pod selectors for Dashboard", func() {
-			ports := feast.collectDashboardPorts()
-			rules := buildDashboardIngressRules(ports)
-			Expect(rules).To(HaveLen(2))
-			for i, podLabel := range []string{dashboardPodLabel, dashboardPodLabelCurrent} {
-				Expect(rules[i].From).To(HaveLen(1))
-				peer := rules[i].From[0]
-				Expect(peer.NamespaceSelector.MatchLabels).To(HaveKeyWithValue(
-					dashboardNamespaceLabel, dashboardNamespaceValue,
+		It("should allow only the RHOAI dashboard on a RHOAI install", func() {
+			setInstallPlatformForTest(installPlatformRHOAI)
+			expectDashboardPodLabels(feast.collectDashboardPorts(), []string{dashboardPodLabelRHOAI})
+		})
+
+		It("should allow legacy and current ODH dashboards on an ODH install", func() {
+			setInstallPlatformForTest(installPlatformODH)
+			expectDashboardPodLabels(feast.collectDashboardPorts(), []string{dashboardPodLabelLegacy, dashboardPodLabelODH})
+		})
+
+		It("should allow every dashboard label when the install type is unknown", func() {
+			expectDashboardPodLabels(feast.collectDashboardPorts(), []string{
+				dashboardPodLabelLegacy, dashboardPodLabelODH, dashboardPodLabelRHOAI,
+			})
+		})
+	})
+
+	Describe("buildDataRegistryUIIngressRules", func() {
+		It("should allow the Data Registry UI from the applications namespace", func() {
+			ports := []*npac.NetworkPolicyPortApplyConfiguration{npPort(DataRegistryProxyPort)}
+			rules := buildDataRegistryUIIngressRules(ports)
+			Expect(rules).To(HaveLen(1))
+			Expect(rules[0].From).To(HaveLen(2))
+			Expect(rules[0].From[0].NamespaceSelector.MatchLabels).To(HaveKeyWithValue(
+				dashboardNamespaceLabel, dashboardNamespaceValue,
+			))
+			Expect(rules[0].From[1].NamespaceSelector.MatchLabels).To(HaveKeyWithValue(
+				customAppNamespaceLabel, customAppNamespaceValue,
+			))
+			for _, peer := range rules[0].From {
+				Expect(peer.PodSelector.MatchLabels).To(HaveKeyWithValue(
+					dataRegistryUIPodLabel, dataRegistryUIPodValue,
 				))
-				Expect(peer.PodSelector.MatchLabels).To(HaveKeyWithValue(podLabel, "true"))
 			}
+			Expect(rules[0].Ports).To(HaveLen(1))
+			Expect(rules[0].Ports[0].Port.IntVal).To(Equal(DataRegistryProxyPort))
 		})
 	})
 
@@ -295,10 +407,21 @@ var _ = Describe("NetworkPolicy", func() {
 
 			dashNP := getNetworkPolicy(ctx, GetFeastName(featureStore)+npSuffixDashboard, featureStore.Namespace)
 			Expect(dashNP).NotTo(BeNil())
-			Expect(dashNP.Spec.Ingress).To(HaveLen(2))
-			Expect(dashNP.Spec.Ingress[0].From[0].NamespaceSelector.MatchLabels).To(HaveKeyWithValue(
-				dashboardNamespaceLabel, dashboardNamespaceValue,
-			))
+			// Install type is unknown in this test, so every dashboard peer is kept.
+			Expect(dashNP.Spec.Ingress).To(HaveLen(3))
+			expectedDashLabels := []string{dashboardPodLabelLegacy, dashboardPodLabelODH, dashboardPodLabelRHOAI}
+			for i, podLabel := range expectedDashLabels {
+				Expect(dashNP.Spec.Ingress[i].From).To(HaveLen(2))
+				Expect(dashNP.Spec.Ingress[i].From[0].NamespaceSelector.MatchLabels).To(HaveKeyWithValue(
+					dashboardNamespaceLabel, dashboardNamespaceValue,
+				))
+				Expect(dashNP.Spec.Ingress[i].From[1].NamespaceSelector.MatchLabels).To(HaveKeyWithValue(
+					customAppNamespaceLabel, customAppNamespaceValue,
+				))
+				for _, peer := range dashNP.Spec.Ingress[i].From {
+					Expect(peer.PodSelector.MatchLabels).To(HaveKeyWithValue(podLabel, "true"))
+				}
+			}
 
 			workbenchNP := getNetworkPolicy(ctx, GetFeastName(featureStore)+npSuffixWorkbench, featureStore.Namespace)
 			Expect(workbenchNP).NotTo(BeNil())
@@ -329,6 +452,56 @@ var _ = Describe("NetworkPolicy", func() {
 			Expect(remoteRegistryNP.Spec.Ingress[0].Ports[0].Port.IntVal).To(Equal(
 				FeastServiceConstants[RegistryFeastType].TargetHttpPort,
 			))
+
+			operatorNP := getNetworkPolicy(ctx, GetFeastName(featureStore)+npSuffixOperatorReg, featureStore.Namespace)
+			Expect(operatorNP).NotTo(BeNil())
+			Expect(operatorNP.Spec.Ingress).To(HaveLen(1))
+			Expect(operatorNP.Spec.Ingress[0].From).To(HaveLen(1))
+			operatorPeer := operatorNP.Spec.Ingress[0].From[0]
+			Expect(operatorPeer.NamespaceSelector.MatchLabels).To(Equal(map[string]string{
+				operatorNamespaceLabel: "feast-operator-system",
+			}))
+			Expect(operatorPeer.PodSelector.MatchLabels).To(Equal(map[string]string{
+				operatorPodNameLabel:         operatorPodNameValue,
+				operatorPodControlPlaneLabel: operatorPodControlPlaneValue,
+			}))
+			Expect(operatorNP.Spec.Ingress[0].Ports).To(HaveLen(1))
+			Expect(operatorNP.Spec.Ingress[0].Ports[0].Port.IntVal).To(Equal(
+				FeastServiceConstants[RegistryFeastType].TargetRestHttpPort,
+			))
+		})
+
+		It("should use the registry REST TLS target port for the operator", func() {
+			featureStore.Spec.Services.Registry.Local.Server.TLS = &feastdevv1.TlsConfigs{
+				SecretRef: &corev1.LocalObjectReference{Name: "tls-secret"},
+			}
+			Expect(feast.ApplyDefaults()).To(Succeed())
+			applySpecToStatus(featureStore)
+			feast.refreshFeatureStore(ctx, types.NamespacedName{Name: featureStore.Name, Namespace: featureStore.Namespace})
+
+			Expect(feast.reconcileNetworkPolicies()).To(Succeed())
+			operatorNP := getNetworkPolicy(ctx, GetFeastName(featureStore)+npSuffixOperatorReg, featureStore.Namespace)
+			Expect(operatorNP).NotTo(BeNil())
+			Expect(operatorNP.Spec.Ingress[0].Ports[0].Port.IntVal).To(Equal(
+				FeastServiceConstants[RegistryFeastType].TargetRestHttpsPort,
+			))
+		})
+
+		It("should remove the operator allowance when registry REST is disabled", func() {
+			Expect(feast.reconcileNetworkPolicies()).To(Succeed())
+			featureStore.Spec.Services.Registry.Local.Server.RestAPI = ptr.To(false)
+			Expect(feast.ApplyDefaults()).To(Succeed())
+			applySpecToStatus(featureStore)
+			feast.refreshFeatureStore(ctx, types.NamespacedName{Name: featureStore.Name, Namespace: featureStore.Namespace})
+
+			Expect(feast.reconcileNetworkPolicies()).To(Succeed())
+			Expect(getNetworkPolicy(ctx, GetFeastName(featureStore)+npSuffixOperatorReg, featureStore.Namespace)).To(BeNil())
+		})
+
+		It("should reject an empty operator namespace rather than write a broad selector", func() {
+			Expect(os.Unsetenv("POD_NAMESPACE")).To(Succeed())
+			Expect(feast.reconcileNetworkPolicies()).To(MatchError(ContainSubstring("POD_NAMESPACE is required")))
+			Expect(getNetworkPolicy(ctx, GetFeastName(featureStore)+npSuffixOperatorReg, featureStore.Namespace)).To(BeNil())
 		})
 
 		It("should not create monitoring policy when metrics is disabled", func() {
@@ -410,6 +583,25 @@ var _ = Describe("NetworkPolicy", func() {
 			Expect(*sameNsNP.OwnerReferences[0].Controller).To(BeTrue())
 		})
 
+		It("should replace ODH and RHOAI peers with the RHOAI dashboard peer", func() {
+			Expect(feast.reconcileNetworkPolicies()).To(Succeed())
+			dashNP := getNetworkPolicy(ctx, GetFeastName(featureStore)+npSuffixDashboard, featureStore.Namespace)
+			Expect(dashNP).NotTo(BeNil())
+			Expect(dashNP.Spec.Ingress).To(HaveLen(3))
+
+			setInstallPlatformForTest(installPlatformRHOAI)
+			Expect(feast.reconcileNetworkPolicies()).To(Succeed())
+
+			dashNP = getNetworkPolicy(ctx, GetFeastName(featureStore)+npSuffixDashboard, featureStore.Namespace)
+			Expect(dashNP.Spec.Ingress).To(HaveLen(1))
+			Expect(dashNP.Spec.Ingress[0].From).To(HaveLen(2))
+			for _, peer := range dashNP.Spec.Ingress[0].From {
+				Expect(peer.PodSelector.MatchLabels).To(HaveKeyWithValue(dashboardPodLabelRHOAI, "true"))
+				Expect(peer.PodSelector.MatchLabels).NotTo(HaveKey(dashboardPodLabelODH))
+				Expect(peer.PodSelector.MatchLabels).NotTo(HaveKey(dashboardPodLabelLegacy))
+			}
+		})
+
 		It("should remove dashboard policy when REST API is disabled", func() {
 			Expect(feast.reconcileNetworkPolicies()).To(Succeed())
 			dashNP := getNetworkPolicy(ctx, GetFeastName(featureStore)+npSuffixDashboard, featureStore.Namespace)
@@ -445,10 +637,65 @@ var _ = Describe("NetworkPolicy", func() {
 			Expect(ingressNP).To(BeNil())
 			remoteRegistryNP := getNetworkPolicy(ctx, GetFeastName(featureStore)+npSuffixRemoteReg, featureStore.Namespace)
 			Expect(remoteRegistryNP).To(BeNil())
+			operatorNP := getNetworkPolicy(ctx, GetFeastName(featureStore)+npSuffixOperatorReg, featureStore.Namespace)
+			Expect(operatorNP).To(BeNil())
 			egressNP := getNetworkPolicy(ctx, GetFeastName(featureStore)+npSuffixEgress, featureStore.Namespace)
 			Expect(egressNP).To(BeNil())
 			cronNP := getNetworkPolicy(ctx, GetFeastName(featureStore)+npSuffixCronJob, featureStore.Namespace)
 			Expect(cronNP).To(BeNil())
+		})
+	})
+
+	Describe("data-registry cleanup on a standard FeatureStore", func() {
+		standardPolicySuffixes := []string{
+			npSuffixSameNs,
+			npSuffixDashboard,
+			npSuffixWorkbench,
+			npSuffixIngress,
+			npSuffixRemoteReg,
+			npSuffixEgress,
+			npSuffixCronJob,
+		}
+
+		It("keeps standard NetworkPolicies in place", func() {
+			Expect(feast.reconcileNetworkPolicies()).To(Succeed())
+
+			uids := map[string]types.UID{}
+			for _, suffix := range standardPolicySuffixes {
+				np := getNetworkPolicy(ctx, GetFeastName(featureStore)+suffix, featureStore.Namespace)
+				Expect(np).NotTo(BeNil(), "policy %s should exist before cleanup", suffix)
+				uids[suffix] = np.UID
+			}
+			Expect(getNetworkPolicy(ctx, GetFeastName(featureStore)+npSuffixDataReg, featureStore.Namespace)).To(BeNil())
+
+			savedOpenShift := isOpenShift
+			isOpenShift = false
+			defer func() { isOpenShift = savedOpenShift }()
+
+			// Deploy() calls this for every FeatureStore that is not a data registry.
+			Expect(feast.deployDataRegistry()).To(Succeed())
+
+			for _, suffix := range standardPolicySuffixes {
+				np := getNetworkPolicy(ctx, GetFeastName(featureStore)+suffix, featureStore.Namespace)
+				Expect(np).NotTo(BeNil(), "policy %s should survive data-registry cleanup", suffix)
+				Expect(np.UID).To(Equal(uids[suffix]), "policy %s should keep its identity", suffix)
+			}
+		})
+
+		It("still removes NetworkPolicies when the standard workload is torn down", func() {
+			Expect(feast.reconcileNetworkPolicies()).To(Succeed())
+			Expect(getNetworkPolicy(ctx, GetFeastName(featureStore)+npSuffixSameNs, featureStore.Namespace)).NotTo(BeNil())
+
+			savedOpenShift := isOpenShift
+			isOpenShift = false
+			defer func() { isOpenShift = savedOpenShift }()
+
+			Expect(feast.CleanupStandardResources()).To(Succeed())
+
+			for _, suffix := range standardPolicySuffixes {
+				Expect(getNetworkPolicy(ctx, GetFeastName(featureStore)+suffix, featureStore.Namespace)).To(BeNil(),
+					"policy %s should be removed with the standard workload", suffix)
+			}
 		})
 	})
 
@@ -486,12 +733,45 @@ var _ = Describe("NetworkPolicy", func() {
 			Expect(sameNsNP).NotTo(BeNil())
 			workbenchNP := getNetworkPolicy(ctx, GetFeastName(featureStore)+npSuffixWorkbench, featureStore.Namespace)
 			Expect(workbenchNP).NotTo(BeNil())
+			Expect(workbenchNP.Spec.Ingress).To(HaveLen(1))
+			Expect(workbenchNP.Spec.Ingress[0].Ports).To(HaveLen(1))
+			Expect(workbenchNP.Spec.Ingress[0].Ports[0].Port.IntVal).To(Equal(DataRegistryProxyPort))
+			Expect(workbenchNP.Spec.Ingress[0].From).To(HaveLen(2))
+			Expect(workbenchNP.Spec.Ingress[0].From[0].PodSelector.MatchLabels).To(Equal(map[string]string{
+				workbenchFeastIntegrationLabel: "true",
+			}))
+			Expect(workbenchNP.Spec.Ingress[0].From[1].NamespaceSelector.MatchLabels).To(BeEmpty())
+			Expect(workbenchNP.Spec.Ingress[0].From[1].PodSelector.MatchLabels).To(Equal(map[string]string{
+				workbenchPodLabel: "true",
+			}))
 			monNP := getNetworkPolicy(ctx, GetFeastName(featureStore)+npSuffixMonitoring, featureStore.Namespace)
 			Expect(monNP).NotTo(BeNil())
 			egressNP := getNetworkPolicy(ctx, GetFeastName(featureStore)+npSuffixEgress, featureStore.Namespace)
 			Expect(egressNP).NotTo(BeNil())
 			dataRegNP := getNetworkPolicy(ctx, GetFeastName(featureStore)+npSuffixDataReg, featureStore.Namespace)
 			Expect(dataRegNP).NotTo(BeNil())
+			Expect(dataRegNP.Spec.PodSelector.MatchLabels).To(HaveKeyWithValue(
+				NameLabelKey, featureStore.Name,
+			))
+			Expect(dataRegNP.Spec.PodSelector.MatchLabels).To(HaveKeyWithValue(
+				ServiceTypeLabelKey, string(DataRegistryFeastType),
+			))
+			Expect(dataRegNP.Spec.Ingress).To(HaveLen(1))
+			Expect(dataRegNP.Spec.Ingress[0].Ports).To(HaveLen(1))
+			Expect(dataRegNP.Spec.Ingress[0].Ports[0].Port.IntVal).To(Equal(DataRegistryProxyPort))
+			Expect(dataRegNP.Spec.Ingress[0].From).To(HaveLen(2))
+			Expect(dataRegNP.Spec.Ingress[0].From[0].PodSelector.MatchLabels).To(HaveKeyWithValue(
+				dataRegistryUIPodLabel, dataRegistryUIPodValue,
+			))
+			Expect(dataRegNP.Spec.Ingress[0].From[0].NamespaceSelector.MatchLabels).To(HaveKeyWithValue(
+				dashboardNamespaceLabel, dashboardNamespaceValue,
+			))
+			Expect(dataRegNP.Spec.Ingress[0].From[1].PodSelector.MatchLabels).To(HaveKeyWithValue(
+				dataRegistryUIPodLabel, dataRegistryUIPodValue,
+			))
+			Expect(dataRegNP.Spec.Ingress[0].From[1].NamespaceSelector.MatchLabels).To(HaveKeyWithValue(
+				customAppNamespaceLabel, customAppNamespaceValue,
+			))
 		})
 
 		It("should clean up standard-mode-only policies", func() {
@@ -504,6 +784,65 @@ var _ = Describe("NetworkPolicy", func() {
 			Expect(dashNP).To(BeNil(), "dashboard NP should be deleted in data-registry mode")
 			remoteRegNP := getNetworkPolicy(ctx, GetFeastName(featureStore)+npSuffixRemoteReg, featureStore.Namespace)
 			Expect(remoteRegNP).To(BeNil(), "remote-registry NP should be deleted in data-registry mode")
+			operatorNP := getNetworkPolicy(ctx, GetFeastName(featureStore)+npSuffixOperatorReg, featureStore.Namespace)
+			Expect(operatorNP).To(BeNil(), "operator REST NP should be deleted in data-registry mode")
+		})
+
+		It("should restore the operator REST policy when returning to standard mode", func() {
+			Expect(feast.reconcileDataRegistryNetworkPolicies()).To(Succeed())
+			Expect(feast.reconcileNetworkPolicies()).To(Succeed())
+			Expect(getNetworkPolicy(ctx, GetFeastName(featureStore)+npSuffixOperatorReg, featureStore.Namespace)).NotTo(BeNil())
+			Expect(getNetworkPolicy(ctx, GetFeastName(featureStore)+npSuffixDataReg, featureStore.Namespace)).To(BeNil())
+		})
+
+		It("removes data-registry NetworkPolicies before releasing the finalizer", func() {
+			Expect(feast.reconcileDataRegistryNetworkPolicies()).To(Succeed())
+
+			rejectedSuffixes := []string{
+				npSuffixDataReg,
+				npSuffixSameNs,
+				npSuffixWorkbench,
+				npSuffixMonitoring,
+				npSuffixEgress,
+				npSuffixIngress,
+			}
+			key := types.NamespacedName{Name: featureStore.Name, Namespace: featureStore.Namespace}
+			feast.refreshFeatureStore(ctx, key)
+			controllerutil.AddFinalizer(feast.Handler.FeatureStore, DataRegistryFinalizer)
+			Expect(k8sClient.Update(ctx, feast.Handler.FeatureStore)).To(Succeed())
+			feast.refreshFeatureStore(ctx, key)
+
+			// envtest has no Route API. Skip the OpenShift route delete; the
+			// policies under test are already created.
+			savedOpenShift := isOpenShift
+			isOpenShift = false
+			defer func() {
+				isOpenShift = savedOpenShift
+				latest := &feastdevv1.FeatureStore{}
+				if err := k8sClient.Get(ctx, key, latest); err != nil {
+					return
+				}
+				if controllerutil.ContainsFinalizer(latest, DataRegistryFinalizer) {
+					controllerutil.RemoveFinalizer(latest, DataRegistryFinalizer)
+					Expect(k8sClient.Update(ctx, latest)).To(Succeed())
+				}
+			}()
+
+			Expect(feast.CleanupDataRegistryResources()).To(Succeed())
+			feast.refreshFeatureStore(ctx, key)
+			Expect(controllerutil.ContainsFinalizer(feast.Handler.FeatureStore, DataRegistryFinalizer)).To(BeTrue())
+			for _, suffix := range rejectedSuffixes {
+				Expect(getNetworkPolicy(ctx, GetFeastName(featureStore)+suffix, featureStore.Namespace)).NotTo(BeNil(),
+					"object cleanup should leave policy %s in place", suffix)
+			}
+
+			Expect(feast.CleanupRejectedDataRegistry()).To(Succeed())
+			feast.refreshFeatureStore(ctx, key)
+			Expect(controllerutil.ContainsFinalizer(feast.Handler.FeatureStore, DataRegistryFinalizer)).To(BeFalse())
+			for _, suffix := range rejectedSuffixes {
+				Expect(getNetworkPolicy(ctx, GetFeastName(featureStore)+suffix, featureStore.Namespace)).To(BeNil(),
+					"rejection should remove policy %s", suffix)
+			}
 		})
 	})
 
