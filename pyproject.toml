@@ -46,13 +46,14 @@ dependencies = [
     # >=2.13 for PyJWKClient's JWK-set cache surviving transient fetch
     # failures; the OIDC token parser reuses one client and relies on it.
     "pyjwt>=2.13.0",
+    "certifi>=2026.10.23",
 ]
 
 [project.optional-dependencies]
 aerospike = [
     "aerospike>=19.0.0,<20.0.0",
 ]
-aws = ["boto3>=1.38.27", "fsspec>=2024.1.0", "aiobotocore>=2"]
+aws = ["boto3>=1.43.117", "fsspec>=2024.1.0", "aiobotocore>=3.10.0"]
 azure = [
     "azure-storage-blob>=0.37.0",
     "azure-identity>=1.6.1",
@@ -83,11 +84,11 @@ ge = ["great_expectations>=0.15.41,<1"]
 glide = ["valkey-glide-sync>=2.5,<3"]
 go = ["cffi>=1.15.0"]
 grpcio = [
-    "grpcio>=1.56.2",
-    "grpcio-reflection>=1.56.2",
-    "grpcio-health-checking>=1.56.2",
+    "grpcio>=1.84.1",
+    "grpcio-reflection>=1.84.1",
+    "grpcio-health-checking>=1.84.1",
 ]
-remote = ["grpcio>=1.56.2"]
+remote = ["grpcio>=1.84.1"]
 hazelcast = ["hazelcast-python-client>=5.1"]
 hbase = ["happybase>=1.2.0,<3"]
 ibis = [
@@ -189,8 +190,8 @@ ci = [
     "dbt-artifacts-parser",
     "ruff>=0.8.0",
     "mypy-protobuf>=3.1",
-    "grpcio-tools>=1.56.2",
-    "grpcio-testing>=1.56.2",
+    "grpcio-tools>=1.84.1",
+    "grpcio-testing>=1.84.1",
     # fastmcp requires >=0.28.1. Was pinned to 0.27.2 because python-keycloak
     # <4.7.3 passed the `proxies` argument httpx removed in 0.28
     # (python-keycloak#623); the floor on python-keycloak above fixes that.
