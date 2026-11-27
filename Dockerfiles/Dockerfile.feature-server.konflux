@@ -50,9 +50,11 @@ FROM registry.access.redhat.com/ubi9/python-312-minimal:9.9@sha256:612eb994cd425
 USER 0
 
 # Runtime shared libraries required by compiled Python extensions:
-#   libicu  - pyarrow (Arrow C++ depends on ICU)
-#   libpq   - psycopg[c] (PostgreSQL C adapter)
-RUN microdnf install -y git libicu libpq python3.12-devel postgresql-devel gcc openblas-devel && microdnf clean all
+#   libicu   - pyarrow (Arrow C++ depends on ICU)
+#   libpq    - psycopg[c] (PostgreSQL C adapter)
+#   openblas - numpy/faiss-cpu BLAS runtime (do NOT install openblas-devel here;
+#              compilers and dev headers belong in the builder stage only)
+RUN microdnf install -y git libicu libpq openblas && microdnf clean all
 
 # Copy installed Python packages and entry-point scripts from builder
 COPY --from=builder /opt/app-root/lib /opt/app-root/lib
