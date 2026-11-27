@@ -1,0 +1,43 @@
+kind: Secret
+apiVersion: v1
+metadata:
+  name: s3-credentials-secret
+  namespace: test-ns-feast-upgrade
+stringData:
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+  AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION}
+  dynamodb: |
+    type: dynamodb
+    region: ${AWS_DEFAULT_REGION}
+---
+apiVersion: feast.dev/v1
+kind: FeatureStore
+metadata:
+  name: test-s3
+  namespace: test-ns-feast-upgrade
+  labels:
+    feature-store-ui: enabled
+spec:
+  feastProject: driver_ranking
+  services:
+    onlineStore:
+      persistence:
+        store:
+          type: dynamodb
+          secretRef:
+            name: s3-credentials-secret
+      server:
+        envFrom:
+          - secretRef:
+              name: s3-credentials-secret
+    registry:
+      local:
+        persistence:
+          file:
+            path: s3://${AWS_S3_BUCKET}/feast-test/driver_ranking/registry.pb
+        server:
+          envFrom:
+          - secretRef:
+              name: s3-credentials-secret
+          restAPI: true

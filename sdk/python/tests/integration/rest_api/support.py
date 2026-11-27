@@ -1,8 +1,12 @@
 import json
+import os
 import shlex
+import socket
 import subprocess
 import tempfile
 import time
+from contextlib import contextmanager
+from typing import Iterator
 
 from kubernetes import client
 
@@ -116,6 +120,70 @@ def run_oc_command(args):
         print(f"Error running oc command: {' '.join(args)}")
         print(e.stderr)
         return None
+
+
+@contextmanager
+def port_forward_service(namespace: str, service_name: str) -> Iterator[str]:
+    """Expose an OpenShift HTTPS service locally for the duration of a test fixture."""
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        local_port = listener.getsockname()[1]
+
+    # Named port matches `oc create route ... --port=https`. Write stderr to a
+    # temp file so a long-lived forward cannot fill a PIPE buffer and stall.
+    stderr_file = tempfile.NamedTemporaryFile(
+        mode="w+", prefix="kubectl-port-forward-", suffix=".log", delete=False
+    )
+    stderr_path = stderr_file.name
+    process = subprocess.Popen(
+        [
+            "kubectl",
+            "port-forward",
+            "--address=127.0.0.1",
+            f"service/{service_name}",
+            f"{local_port}:https",
+            "-n",
+            namespace,
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=stderr_file,
+        text=True,
+    )
+    try:
+        for _ in range(50):
+            if process.poll() is not None:
+                stderr_file.flush()
+                with open(stderr_path, encoding="utf-8") as err:
+                    error = err.read().strip()
+                raise RuntimeError(f"kubectl port-forward exited: {error}")
+            try:
+                with socket.create_connection(("127.0.0.1", local_port), timeout=0.2):
+                    break
+            except OSError:
+                time.sleep(0.2)
+        else:
+            stderr_file.flush()
+            with open(stderr_path, encoding="utf-8") as err:
+                error = err.read().strip()
+            raise RuntimeError(
+                "kubectl port-forward did not start within 10 seconds"
+                + (f": {error}" if error else "")
+            )
+
+        yield f"https://127.0.0.1:{local_port}"
+    finally:
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+        stderr_file.close()
+        try:
+            os.unlink(stderr_path)
+        except OSError:
+            pass
 
 
 def validate_feature_store_cr_status(

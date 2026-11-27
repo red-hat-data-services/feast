@@ -354,6 +354,32 @@ def test_sql_registry(sqlite_registry):
         sqlite_registry.get_entity("test_entity", "test_project")
 
 
+def test_cas_touch_project_only_for_data_registry(sqlite_registry):
+    from unittest.mock import patch
+
+    entity = Entity(
+        name="test_entity",
+        description="Test entity for testing",
+        tags={"test": "transaction"},
+    )
+    with patch.object(sqlite_registry, "_cas_touch_project") as spy:
+        sqlite_registry.apply_entity(entity, "test_project")
+        spy.assert_not_called()
+        sqlite_registry.delete_entity("test_entity", "test_project")
+        spy.assert_not_called()
+
+    catalog_entity = Entity(
+        name="catalog_entity",
+        description="Catalog project entity",
+        tags={"test": "transaction"},
+    )
+    with patch.object(
+        sqlite_registry, "_cas_touch_project", wraps=sqlite_registry._cas_touch_project
+    ) as spy:
+        sqlite_registry.apply_entity(catalog_entity, "data-registry")
+        spy.assert_called()
+
+
 def test_delete_permission_refreshes_cache(sqlite_registry):
     permission = Permission(
         name="reader",
@@ -672,6 +698,45 @@ def test_list_feature_views_updated_since_naive_treated_as_utc(sqlite_registry):
         "test_project", tags=None, updated_since=past_aware
     )
     assert len(result) == len(result_aware)
+
+
+def test_cache_mode_none_reads_registry_directly(tmp_path):
+    """With cache_mode='none' the SQL registry never builds an in-memory copy and
+    reads that allow the cache see writes immediately."""
+    from unittest.mock import patch
+
+    config = SqlRegistryConfig(
+        registry_type="sql",
+        path=f"sqlite:///{tmp_path / 'registry.db'}",
+        cache_mode="none",
+    )
+    with patch.object(SqlRegistry, "proto") as mock_proto:
+        registry = SqlRegistry(config, "test_project", None)
+
+        registry.apply_entity(Entity(name="driver"), "test_project")
+        assert [
+            e.name for e in registry.list_entities("test_project", allow_cache=True)
+        ] == ["driver"]
+        assert (
+            registry.get_entity("driver", "test_project", allow_cache=True).name
+            == "driver"
+        )
+
+        registry.apply_entity(Entity(name="customer"), "test_project")
+        assert sorted(
+            e.name for e in registry.list_entities("test_project", allow_cache=True)
+        ) == ["customer", "driver"]
+
+        registry.delete_entity("driver", "test_project")
+        assert [
+            e.name for e in registry.list_entities("test_project", allow_cache=True)
+        ] == ["customer"]
+
+        registry.refresh()
+        mock_proto.assert_not_called()
+
+    assert registry.cached_registry_proto_created is None
+    registry.teardown()
 
 
 class TestSchemaMode:

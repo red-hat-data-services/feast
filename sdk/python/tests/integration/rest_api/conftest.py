@@ -1,5 +1,6 @@
 import os
 import time
+from contextlib import nullcontext
 from pathlib import Path
 
 import pytest
@@ -12,13 +13,13 @@ from tests.integration.rest_api.support import (
     create_data_registry_route,
     create_feast_project,
     create_namespace,
-    create_route,
     create_sa_token,
     delete_namespace,
     deploy_and_validate_pod,
     execPodCommand,
     get_pod_name_by_prefix,
     label_namespace,
+    port_forward_service,
     run_kubectl_command,
     validate_feature_store_cr_status,
     wait_for_data_registry_ready,
@@ -116,9 +117,15 @@ def _wait_for_http_ready(
     verify_ssl: bool = False,
     headers: dict = None,
 ) -> None:
-    """Poll an HTTP endpoint until it returns a non-502 response."""
+    """Poll an HTTP endpoint until the server answers with a non-gateway status.
+
+    401/403 count as ready: the process is up and auth middleware is reachable.
+    Avoid probing auth-enabled registries with a privileged Bearer token here —
+    admin listing can hang while unauthenticated probes return quickly.
+    """
     health_url = f"{route_url}{health_path}"
     last_status = None
+    gateway_statuses = {502, 503, 504}
 
     if initial_delay > 0:
         print(f"\n Waiting {initial_delay}s for backend to start...")
@@ -135,7 +142,7 @@ def _wait_for_http_ready(
                 health_url, timeout=10, verify=verify_ssl, headers=headers or {}
             )
             last_status = resp.status_code
-            if resp.status_code != 502:
+            if resp.status_code not in gateway_statuses:
                 print(f" HTTP endpoint is ready (status={resp.status_code})")
                 return
             print(
@@ -209,11 +216,8 @@ def feast_rest_client():
         )
         validate_feature_store_cr_status(NAMESPACE, DRIVER_RANKING)
 
-        if run_on_openshift:
-            route_url = create_route(
-                NAMESPACE, CREDIT_SCORING, CREDIT_SCORING_REST_SERVICE
-            )
-        else:
+        route_url = None
+        if not run_on_openshift:
             run_kubectl_command(
                 [
                     "apply",
@@ -245,13 +249,18 @@ def feast_rest_client():
         execPodCommand(NAMESPACE, pod_name, ["python", "create_ui_visible_datasets.py"])
         execPodCommand(NAMESPACE, pod_name, ["python", "permissions_apply.py"])
 
-        if not route_url:
-            raise RuntimeError("Route URL could not be fetched.")
+        endpoint = (
+            port_forward_service(NAMESPACE, CREDIT_SCORING_REST_SERVICE)
+            if run_on_openshift
+            else nullcontext(route_url)
+        )
+        with endpoint as base_url:
+            if not base_url:
+                raise RuntimeError("Registry REST URL could not be fetched.")
+            _wait_for_http_ready(base_url)
 
-        _wait_for_http_ready(route_url)
-
-        print(f"\n Connected to Feast REST at: {route_url}")
-        yield FeastRestClient(route_url)
+            print(f"\n Connected to Feast REST at: {base_url}")
+            yield FeastRestClient(base_url)
 
     finally:
         print(f"\n Deleting namespace: {NAMESPACE}")
@@ -359,44 +368,40 @@ def unauthorized_token(feast_extended_setup):
 # Auth-enabled Feast fixtures
 # ---------------------------------------------------------------------------
 @pytest.fixture(scope="session")
-def feast_auth_route_url(feast_extended_setup):
-    """Route URL for the feast-auth CR's registry-rest service."""
+def feast_auth_url(feast_extended_setup):
+    """Local URL for the feast-auth CR's registry-rest service."""
     run_on_openshift = os.getenv("RUN_ON_OPENSHIFT_CI", "false").lower() == "true"
     if not run_on_openshift:
-        pytest.skip("feast-auth route requires OpenShift")
+        pytest.skip("feast-auth service requires OpenShift")
 
-    url = create_route(NAMESPACE, FEAST_AUTH, FEAST_AUTH_REST_SERVICE)
-    if not url:
-        raise RuntimeError("Could not create route for feast-auth")
-    return url
+    with port_forward_service(NAMESPACE, FEAST_AUTH_REST_SERVICE) as url:
+        yield url
 
 
 @pytest.fixture(scope="session")
-def feast_auth_client(feast_auth_route_url, admin_token):
+def feast_auth_client(feast_auth_url, admin_token):
     """FeastRestClient for the auth-enabled Feast CR, using the admin SA token."""
-    _wait_for_http_ready(
-        feast_auth_route_url,
-        headers={"Authorization": f"Bearer {admin_token}"},
-    )
-    return FeastRestClient(feast_auth_route_url, token=admin_token)
+    # Probe without a token so readiness does not hang on privileged /projects.
+    _wait_for_http_ready(feast_auth_url)
+    return FeastRestClient(feast_auth_url, token=admin_token)
 
 
 @pytest.fixture(scope="session")
-def feast_auth_viewer_client(feast_auth_route_url, viewer_token):
+def feast_auth_viewer_client(feast_auth_url, viewer_token):
     """FeastRestClient for the auth-enabled Feast CR, using the viewer SA token."""
-    return FeastRestClient(feast_auth_route_url, token=viewer_token)
+    return FeastRestClient(feast_auth_url, token=viewer_token)
 
 
 @pytest.fixture(scope="session")
-def feast_auth_unauthorized_client(feast_auth_route_url, unauthorized_token):
+def feast_auth_unauthorized_client(feast_auth_url, unauthorized_token):
     """FeastRestClient for the auth-enabled Feast CR, using an unauthorized SA token."""
-    return FeastRestClient(feast_auth_route_url, token=unauthorized_token)
+    return FeastRestClient(feast_auth_url, token=unauthorized_token)
 
 
 @pytest.fixture(scope="session")
-def feast_auth_no_token_client(feast_auth_route_url):
+def feast_auth_no_token_client(feast_auth_url):
     """FeastRestClient for the auth-enabled Feast CR, with no token (expect 401)."""
-    return FeastRestClient(feast_auth_route_url, token=None)
+    return FeastRestClient(feast_auth_url, token=None)
 
 
 # ---------------------------------------------------------------------------
