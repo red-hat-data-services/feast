@@ -2,7 +2,6 @@
 
 approvers:
 - tmihalac
-- accorvin
 - amsharma3
 - franciscojavierarceo
 - ntkathole
@@ -10,7 +9,6 @@ approvers:
 options: {}
 reviewers:
 - tmihalac
-- accorvin
 - amsharma3
 - franciscojavierarceo
 - ntkathole

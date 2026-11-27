@@ -3387,6 +3387,7 @@ spec:
                                 - aerospike
                                 - scylladb
                                 - chronon
+                                - pinecone
                                 type: string
                             required:
                             - secretRef
@@ -7328,12 +7329,13 @@ spec:
               rule: self.replicas <= 1 || !has(self.services) || !has(self.services.scaling)
                 || !has(self.services.scaling.autoscaling)
             - message: Scaling requires DB-backed persistence for the online store.
-                Configure services.onlineStore.persistence.store when using replicas
-                > 1 or autoscaling.
+                Configure services.onlineStore.persistence.store, or set services.onlineStore.disabled,
+                when using replicas > 1 or autoscaling.
               rule: self.replicas <= 1 && (!has(self.services) || !has(self.services.scaling)
                 || !has(self.services.scaling.autoscaling)) || (has(self.services)
-                && has(self.services.onlineStore) && has(self.services.onlineStore.persistence)
-                && has(self.services.onlineStore.persistence.store))
+                && has(self.services.onlineStore) && ((has(self.services.onlineStore.disabled)
+                && self.services.onlineStore.disabled) || (has(self.services.onlineStore.persistence)
+                && has(self.services.onlineStore.persistence.store))))
             - message: Scaling requires DB-backed persistence for the offline store.
                 Configure services.offlineStore.persistence.store when using replicas
                 > 1 or autoscaling.
@@ -10735,6 +10737,7 @@ spec:
                                     - aerospike
                                     - scylladb
                                     - chronon
+                                    - pinecone
                                     type: string
                                 required:
                                 - secretRef
@@ -14724,12 +14727,13 @@ spec:
                   rule: self.replicas <= 1 || !has(self.services) || !has(self.services.scaling)
                     || !has(self.services.scaling.autoscaling)
                 - message: Scaling requires DB-backed persistence for the online store.
-                    Configure services.onlineStore.persistence.store when using replicas
-                    > 1 or autoscaling.
+                    Configure services.onlineStore.persistence.store, or set services.onlineStore.disabled,
+                    when using replicas > 1 or autoscaling.
                   rule: self.replicas <= 1 && (!has(self.services) || !has(self.services.scaling)
                     || !has(self.services.scaling.autoscaling)) || (has(self.services)
-                    && has(self.services.onlineStore) && has(self.services.onlineStore.persistence)
-                    && has(self.services.onlineStore.persistence.store))
+                    && has(self.services.onlineStore) && ((has(self.services.onlineStore.disabled)
+                    && self.services.onlineStore.disabled) || (has(self.services.onlineStore.persistence)
+                    && has(self.services.onlineStore.persistence.store))))
                 - message: Scaling requires DB-backed persistence for the offline
                     store. Configure services.offlineStore.persistence.store when
                     using replicas > 1 or autoscaling.
@@ -16353,6 +16357,7 @@ spec:
                                 - aerospike
                                 - scylladb
                                 - chronon
+                                - pinecone
                                 type: string
                             required:
                             - secretRef
@@ -20931,6 +20936,7 @@ spec:
                                     - aerospike
                                     - scylladb
                                     - chronon
+                                    - pinecone
                                     type: string
                                 required:
                                 - secretRef
@@ -24306,16 +24312,9 @@ rules:
   - ""
   resources:
   - pods/log
-  verbs:
-  - get
-- apiGroups:
-  - ""
-  resources:
   - secrets
   verbs:
   - get
-  - list
-  - watch
 - apiGroups:
   - ""
   resources:
@@ -24527,6 +24526,7 @@ rules:
   - create
   - get
   - list
+  - watch
 - apiGroups:
   - rbac.authorization.k8s.io
   resourceNames:
@@ -24710,7 +24710,7 @@ spec:
         - /manager
         env:
         - name: RELATED_IMAGE_FEATURE_SERVER
-          value: quay.io/feastdev/feature-server:0.67.0
+          value: quay.io/feastdev/feature-server:0.68.0
         - name: RELATED_IMAGE_CRON_JOB
           value: registry.k8s.io/kubectl:v1.35.9
         - name: RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE
@@ -24723,7 +24723,7 @@ spec:
           value: 230MiB
         - name: OIDC_ISSUER_URL
           value: ""
-        image: quay.io/feastdev/feast-operator:0.67.0
+        image: quay.io/feastdev/feast-operator:0.68.0
         livenessProbe:
           httpGet:
             path: /healthz
