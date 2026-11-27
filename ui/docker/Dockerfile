@@ -1,4 +1,4 @@
-FROM node:20-bookworm-slim
+FROM node:17.9.0-slim
 
 WORKDIR /app
 # add `/app/node_modules/.bin` to $PATH
