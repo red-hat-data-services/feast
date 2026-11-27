@@ -63,6 +63,8 @@ replacements:
           name: controller-manager
         fieldPaths:
           - spec.template.spec.containers.[name=manager].env.[name=RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE].value
+        options:
+          create: true
   - source:
       kind: ConfigMap
       name: feast-operator-parameters

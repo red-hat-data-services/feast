@@ -34,3 +34,10 @@
 /sdk/python/feast/infra/online_stores/contrib/hbase_online_store     @sudohainguyen
 
 # ==== Batch Materialization Engines ====
+
+# ==== Downstream only (opendatahub-io/feast) ====
+# API contract checks: the baseline, the pinned workflow ref and the exclusions
+# decide what the check protects, so changes need an owner's review.
+# Keep this block across upstream syncs.
+/.github/workflows/api-contract.yml @opendatahub-io/feature-store-maintainers
+/.rhoai/ @opendatahub-io/feature-store-maintainers

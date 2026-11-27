@@ -1,0 +1,59 @@
+---
+# Feast PR integration test (Pipelines-as-Code)
+#
+# Runs the same Hypershift + deploy + e2e flow as /group-test: uses Konflux
+# snapshot images built from the pull request (odh-feast-operator-ci,
+# odh-feature-server-ci), not freshly built nightly images.
+#
+# Triggers:
+#   - Comment: /pr-e2etest on a pull request (manual trigger)
+#
+# Pipeline definition: opendatahub-io/odh-konflux-central
+#   integration-tests/feast/pr-group-testing-pipeline.yaml
+#
+# Components tested: odh-feast-operator-ci, odh-feature-server-ci
+#
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  annotations:
+    build.appstudio.openshift.io/repo: https://github.com/opendatahub-io/feast?rev={{revision}}
+    build.appstudio.redhat.com/commit_sha: '{{revision}}'
+    build.appstudio.redhat.com/target_branch: '{{target_branch}}'
+    build.appstudio.redhat.com/pull_request_number: '{{pull_request_number}}'
+    pipelinesascode.tekton.dev/cancel-in-progress: "false"
+    pipelinesascode.tekton.dev/max-keep-runs: "5"
+    pipelinesascode.tekton.dev/on-comment: "^/pr-e2etest"
+  name: feast-pr-test
+  namespace: open-data-hub-tenant
+  labels:
+    appstudio.openshift.io/application: group-testing
+    appstudio.openshift.io/component: feast-group
+    pipelines.appstudio.openshift.io/type: test
+spec:
+  params:
+  - name: group-components
+    value: '{ "odh-feast-operator-ci": "opendatahub/feast-operator", "odh-feature-server-ci": "opendatahub/feature-server" }'
+  pipelineRef:
+    resolver: git
+    params:
+    - name: url
+      value: https://github.com/opendatahub-io/odh-konflux-central.git
+    - name: revision
+      value: main
+    - name: pathInRepo
+      value: integration-tests/feast/pr-group-testing-pipeline.yaml
+  taskRunTemplate:
+    podTemplate:
+      nodeSelector:
+        konflux-ci.dev/workload: konflux-tenants
+      tolerations:
+      - effect: NoSchedule
+        key: konflux-ci.dev/workload
+        operator: Equal
+        value: konflux-tenants
+    serviceAccountName: konflux-integration-runner
+  workspaces:
+  - name: git-auth
+    secret:
+      secretName: '{{ git_auth_secret }}'

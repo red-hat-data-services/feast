@@ -1,0 +1,60 @@
+---
+# Feast Nightly Test Pipeline (Pipelines-as-Code)
+#
+# Triggers the nightly integration test pipeline which resolves the latest
+# Konflux-built odh-master images (pushed on every merge to master by the
+# odh-feast-operator-push and odh-feature-server-push pipelines), provisions
+# an ephemeral HyperShift cluster, deploys the operator and feature-server,
+# and runs the full e2e + REST API + previous-version + upgrade test suite.
+#
+# Triggers:
+#   - Cron: daily at 8 AM UTC
+#
+# Pipeline definition: odh-konflux-central/integration-tests/feast/nightly-testing-pipeline.yaml
+#
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  annotations:
+    build.appstudio.openshift.io/repo: https://github.com/opendatahub-io/feast?rev={{revision}}
+    build.appstudio.redhat.com/commit_sha: '{{revision}}'
+    build.appstudio.redhat.com/target_branch: '{{target_branch}}'
+    pipelinesascode.tekton.dev/cancel-in-progress: "false"
+    pipelinesascode.tekton.dev/max-keep-runs: "3"
+    pipelinesascode.tekton.dev/on-cron: "0 8 * * *"
+    pipelinesascode.tekton.dev/on-target-branch: "master"
+  name: feast-nightly-test
+  namespace: open-data-hub-tenant
+  labels:
+    appstudio.openshift.io/application: group-testing
+    appstudio.openshift.io/component: feast-nightly
+    pipelines.appstudio.openshift.io/type: test
+spec:
+  params:
+  - name: git-repo
+    value: opendatahub-io/feast
+  - name: git-branch
+    value: master
+  pipelineRef:
+    resolver: git
+    params:
+    - name: url
+      value: https://github.com/opendatahub-io/odh-konflux-central.git
+    - name: revision
+      value: main
+    - name: pathInRepo
+      value: integration-tests/feast/nightly-testing-pipeline.yaml
+  taskRunTemplate:
+    podTemplate:
+      nodeSelector:
+        konflux-ci.dev/workload: konflux-tenants
+      tolerations:
+      - effect: NoSchedule
+        key: konflux-ci.dev/workload
+        operator: Equal
+        value: konflux-tenants
+    serviceAccountName: konflux-integration-runner
+  workspaces:
+  - name: git-auth
+    secret:
+      secretName: '{{ git_auth_secret }}'
