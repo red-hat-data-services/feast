@@ -1,0 +1,51 @@
+name: API contract
+
+# API contract compatibility checks for the FeatureStore CRD (feast.dev).
+#
+# Downstream-only file: keep it across upstream syncs, and do not send it upstream.
+#
+# Reusable workflows come from red-hat-data-services/api-contract-tests, pinned to
+# the floating release tag `latest` (v2.2.0 when this file was added). It moves with
+# every release. Read the release notes and
+# https://github.com/red-hat-data-services/api-contract-tests/blob/main/docs/releasing.md
+# before changing the pin.
+#
+# Baseline: 41c4f6aa584a24db99792245743d33da51a8b27c, the opendatahub-io/feast commit
+# that opendatahub-io/feast-module-operator pins for ODH (COMMIT_SHA in
+# hack/scripts/get-manifests.sh on main, checked 2026-11-16). Keep the two in step,
+# so the check protects the operator manifests that ODH ships. Everything in the CRD
+# at that commit must stay compatible. Moving the baseline needs approval from
+# someone other than the author of the change.
+#
+# There is no .rhoai/contracts.yaml: this repository has no OpenAPI documents, so
+# the coverage job runs in CRD-only mode.
+
+on:
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  crd-contract:
+    uses: red-hat-data-services/api-contract-tests/.github/workflows/provider-crd-check.yml@latest
+    with:
+      # The canonical CRD manifest (FeatureStore).
+      crd-glob: infra/feast-operator/config/crd/bases/*.yaml
+      baseline-refs: 41c4f6aa584a24db99792245743d33da51a8b27c  # feast-module-operator ODH pin  # pragma: allowlist secret
+      mode: enforce
+
+  api-contract-coverage:
+    uses: red-hat-data-services/api-contract-tests/.github/workflows/provider-coverage-check.yml@latest
+    with:
+      crd-globs: infra/feast-operator/config/crd/bases/*.yaml
+      # Generated copies of the canonical CRD above, not separate contracts:
+      # - bundle/manifests/feast.dev_featurestores.yaml: OLM bundle copy (make bundle)
+      # - dist/*.yaml: generated install manifest (make build-installer)
+      crd-exclude-globs: >-
+        infra/feast-operator/bundle/manifests/feast.dev_featurestores.yaml
+        infra/feast-operator/dist/*.yaml
+      baseline-refs: 41c4f6aa584a24db99792245743d33da51a8b27c  # feast-module-operator ODH pin  # pragma: allowlist secret
+      yq-version: "4.45.1"
+      mode: enforce

@@ -1,0 +1,96 @@
+name: Nightly Test Status Monitor
+
+# The Feast nightly integration test is scheduled and executed entirely within
+# Konflux via the PaC cron trigger in .tekton/feast-nightly-test.yaml (daily
+# at 8 AM UTC). The Konflux pipeline posts the result back to GitHub as a
+# commit status (context: konflux/nightly-feast) on the master HEAD.
+#
+# This workflow runs after the Konflux pipeline should have completed and
+# reports the nightly status in the GitHub Actions summary.
+#
+# No Konflux API secrets are required.
+
+on:
+  schedule:
+    - cron: '0 11 * * *'   # 11 AM UTC — Konflux nightly starts 8 AM, runs ~2h
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to check nightly status for'
+        required: false
+        default: 'master'
+        type: string
+
+env:
+  STATUS_CONTEXT: 'konflux/nightly-feast'
+
+jobs:
+  check-nightly-status:
+    runs-on: ubuntu-latest
+    permissions:
+      statuses: read
+    steps:
+      - name: Get branch HEAD SHA
+        id: sha
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ inputs.branch || 'master' }}
+        run: |
+          SHA=$(gh api "repos/${{ github.repository }}/git/refs/heads/${BRANCH}" \
+            --jq '.object.sha')
+          echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
+          echo "branch=${BRANCH}" >> "$GITHUB_OUTPUT"
+          echo "Branch: ${BRANCH}  SHA: ${SHA}"
+
+      - name: Read Konflux nightly commit status
+        id: nightly
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The Konflux nightly pipeline posts commit status via report-nightly-status task.
+          # Statuses are ordered newest-first; pick the first matching context.
+          PAYLOAD=$(gh api \
+            "repos/${{ github.repository }}/commits/${{ steps.sha.outputs.sha }}/statuses" \
+            --jq "[.[] | select(.context == \"${STATUS_CONTEXT}\")] | first // {}")
+
+          STATE=$(echo "$PAYLOAD"       | jq -r '.state       // "not_found"')
+          DESCRIPTION=$(echo "$PAYLOAD" | jq -r '.description // ""')
+          TARGET_URL=$(echo "$PAYLOAD"  | jq -r '.target_url  // ""')
+
+          echo "state=${STATE}"             >> "$GITHUB_OUTPUT"
+          echo "description=${DESCRIPTION}" >> "$GITHUB_OUTPUT"
+          echo "target_url=${TARGET_URL}"   >> "$GITHUB_OUTPUT"
+
+          echo "Konflux nightly status: ${STATE}"
+          echo "Description:            ${DESCRIPTION}"
+          echo "Details URL:            ${TARGET_URL}"
+
+          if [ "${STATE}" = "pending" ]; then
+            echo "::warning::Konflux nightly pipeline is still pending — results not available yet."
+          elif [ "${STATE}" = "not_found" ]; then
+            echo "::warning::No commit status found for context '${STATUS_CONTEXT}' on ${BRANCH} HEAD."
+            echo "::warning::The Konflux pipeline may not have run yet or status was not posted."
+          elif [ "${STATE}" = "failure" ]; then
+            echo "::error::Konflux nightly test failed — see Details URL for pipeline run logs."
+          fi
+
+      - name: Summary
+        if: always()
+        env:
+          STATE: ${{ steps.nightly.outputs.state }}
+          DESCRIPTION: ${{ steps.nightly.outputs.description }}
+          TARGET_URL: ${{ steps.nightly.outputs.target_url }}
+        run: |
+          {
+            echo "## Feast Nightly Test Status"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| **Branch** | \`${{ steps.sha.outputs.branch }}\` |"
+            echo "| **Commit** | \`${{ steps.sha.outputs.sha }}\` |"
+            echo "| **Konflux status** | \`${STATE}\` |"
+            echo "| **Description** | ${DESCRIPTION} |"
+            if [ -n "${TARGET_URL}" ]; then
+              echo "| **Details** | [View pipeline run](${TARGET_URL}) |"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

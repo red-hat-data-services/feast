@@ -97,9 +97,9 @@ type FeatureStoreReconciler struct {
 // +kubebuilder:rbac:groups=core,resources=services;configmaps;persistentvolumeclaims,verbs=get;list;create;update;watch;delete;deletecollection
 // +kubebuilder:rbac:groups=core,resources=serviceaccounts,verbs=get;list;create;update;watch;delete
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;create;update;watch;delete
-// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterrolebindings,verbs=get;list;create;watch;update;delete
-// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles,verbs=create;get;list;watch
-// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles,resourceNames=feast-data-registry-admin;feast-data-registry-editor;feast-data-registry-viewer;feast-discover-namespaces;feast-oidc-token-review;feast-token-review-cluster-role,verbs=update;delete
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles,verbs=get;list;watch;create
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles,verbs=update;delete,resourceNames=feast-data-registry-admin;feast-data-registry-editor;feast-data-registry-viewer;feast-discover-namespaces;feast-oidc-token-review;feast-token-review-cluster-role
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterrolebindings,verbs=create;get;list;watch;update;delete
 // bind on ClusterRole system:auth-delegator is listed in config/rbac/role.yaml (controller-gen
 // markers cannot express resourceNames containing ':').
 // +kubebuilder:rbac:groups=dataregistry.opendatahub.io,resources=registries;namespaces;tables;volumes;generic-tables,verbs=get;list;watch;create;update;patch;delete
@@ -108,7 +108,7 @@ type FeatureStoreReconciler struct {
 // RemoveNamespaceLabelIfLast, which write the opendatahub.io/feast
 // discovery label. Not present upstream; do not drop when syncing.
 // +kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list;watch;create;update
-// +kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch
+// +kubebuilder:rbac:groups=core,resources=secrets,verbs=get
 // +kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch;create;delete;deletecollection
 // +kubebuilder:rbac:groups=core,resources=pods/exec,verbs=create
 // +kubebuilder:rbac:groups=core,resources=pods/log,verbs=get

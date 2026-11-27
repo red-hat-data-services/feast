@@ -1852,6 +1852,9 @@ class FeatureStore:
             lvs_to_delete = [
                 ob for ob in objects_to_delete if isinstance(ob, LabelView)
             ]
+            saved_datasets_to_delete = [
+                ob for ob in objects_to_delete if isinstance(ob, SavedDataset)
+            ]
 
             for data_source in data_sources_to_delete:
                 self.registry.delete_data_source(
@@ -1884,6 +1887,10 @@ class FeatureStore:
             for validation_references in validation_references_to_delete:
                 self.registry.delete_validation_reference(
                     validation_references.name, project=self.project, commit=False
+                )
+            for saved_dataset in saved_datasets_to_delete:
+                self.registry.delete_saved_dataset(
+                    saved_dataset.name, project=self.project, commit=False
                 )
             for permission in permissions_to_delete:
                 self.registry.delete_permission(
@@ -2088,7 +2095,7 @@ class FeatureStore:
             )
 
         if entity_df is None and end_date is None:
-            end_date = datetime.now()
+            end_date = datetime.now(tz=_timezone.utc)
 
         _feature_refs = utils._get_features(
             self.registry, self.project, features, allow_cache=True
@@ -4003,7 +4010,7 @@ class FeatureStore:
         if reorder_columns:
             df = df.reindex(columns=source_columns)
 
-        table = pa.Table.from_pandas(df)
+        table = pa.Table.from_pandas(df, preserve_index=False)
         provider.ingest_df_to_offline_store(feature_view, table)
 
     def get_online_features(
@@ -5247,7 +5254,19 @@ def _entity_keys_from_dataframe(feature_view: Any, df: pd.DataFrame) -> List[Ent
     from feast.type_map import python_values_to_proto_values
 
     join_keys = list(getattr(feature_view, "join_keys", []) or [])
-    if not join_keys or any(k not in df.columns for k in join_keys):
+    if not join_keys:
+        return []
+
+    # Ingestion renames the pushed columns with batch_source.field_mapping
+    # before it builds entity keys, so a pushed frame may name a join key by
+    # its source column. Map the frame the same way before looking for them.
+    field_mapping = getattr(
+        getattr(feature_view, "batch_source", None), "field_mapping", None
+    )
+    if isinstance(field_mapping, dict) and field_mapping:
+        df = df.rename(columns=field_mapping)
+
+    if any(k not in df.columns for k in join_keys):
         return []
     value_types = {
         field.name: field.dtype.to_value_type()
