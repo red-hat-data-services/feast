@@ -44,6 +44,12 @@ def dbt_cmd():
     help="Type of data source to create",
 )
 @click.option(
+    "--file-path-template",
+    default=None,
+    help="Path template for file sources; {model} is the model name. "
+    "Defaults to /data/{model}.parquet.",
+)
+@click.option(
     "--timestamp-field",
     "-t",
     default="event_timestamp",
@@ -100,6 +106,7 @@ def import_command(
     dry_run: bool,
     exclude_columns: Optional[str],
     output: Optional[str],
+    file_path_template: Optional[str] = None,
 ):
     """
     Import dbt models as Feast FeatureViews.
@@ -121,9 +128,25 @@ def import_command(
         # Generate Python file instead of applying to registry
         feast dbt import -m target/manifest.json -e driver_id --tag feast --output features.py
     """
-    from feast.dbt.mapper import DbtToFeastMapper, map_dbt_type_to_feast_type
+    from feast.dbt.mapper import (
+        DbtToFeastMapper,
+        _validate_file_path_template,
+        map_dbt_type_to_feast_type,
+    )
     from feast.dbt.parser import DbtManifestParser, DbtModel
-    from feast.types import Array, Int32, Int64, String
+    from feast.types import (
+        Array,
+        Int32,
+        Int64,
+        String,
+        UnixTimestamp,
+        ZonedTimestamp,
+    )
+
+    try:
+        _validate_file_path_template(file_path_template, data_source_type)
+    except ValueError as e:
+        raise click.BadParameter(str(e), param_hint="--file-path-template") from e
 
     # Parse manifest
     click.echo(f"{Fore.CYAN}Parsing dbt manifest: {manifest_path}{Style.RESET_ALL}")
@@ -192,6 +215,7 @@ def import_command(
         data_source_type=data_source_type,
         timestamp_field=timestamp_field,
         ttl_days=ttl_days,
+        file_path_template=file_path_template,
     )
 
     # Generate Feast objects
@@ -210,6 +234,20 @@ def import_command(
                 f"field '{timestamp_field}'. Skipping.{Style.RESET_ALL}"
             )
             continue
+
+        # The parser reports STRING for columns with no declared data_type.
+        timestamp_column = next(c for c in model.columns if c.name == timestamp_field)
+        if map_dbt_type_to_feast_type(timestamp_column.data_type) not in (
+            UnixTimestamp,
+            ZonedTimestamp,
+        ):
+            click.echo(
+                f"{Fore.YELLOW}Warning: Model '{model.name}' timestamp field "
+                f"'{timestamp_field}' has type '{timestamp_column.data_type}', "
+                f"which does not map to a timestamp type. Importing anyway. "
+                f"Declare it as a timestamp type in schema.yml if this is wrong."
+                f"{Style.RESET_ALL}"
+            )
 
         # Validate ALL entity columns exist
         missing_entities = [e for e in entity_cols if e not in column_names]
@@ -314,6 +352,7 @@ def import_command(
             project_name=parser.project_name or "",
             exclude_columns=excluded,
             online=True,
+            file_path_template=file_path_template,
         )
 
         with open(output, "w") as f:

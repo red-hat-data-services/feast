@@ -218,7 +218,7 @@ def test_preload_system_openssl_reexecs_on_fips():
         del os.environ["_FEAST_FIPS_REEXEC"]
 
 
-def test_module_level_fips_sets_env_before_pyarrow_import():
+def test_module_level_fips_sets_env_before_pyarrow_import() -> None:
     """GRPC_SSL_CIPHER_SUITES must be set at module load time,
     before pyarrow.flight (which bundles gRPC) is imported.
 
